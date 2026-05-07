@@ -1,0 +1,173 @@
+[
+  {
+    "tool": "select_idlecmd",
+    "args": {
+      "command": "summon",
+      "index": 0
+    }
+  },
+  {
+    "tool": "select_place",
+    "args": {
+      "places": [
+        {
+          "player": 0,
+          "location": 4,
+          "sequence": 0
+        }
+      ]
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_idlecmd",
+    "args": {
+      "command": "set_spell",
+      "index": 0
+    }
+  },
+  {
+    "tool": "select_place",
+    "args": {
+      "places": [
+        {
+          "player": 0,
+          "location": 8,
+          "sequence": 3
+        }
+      ]
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_idlecmd",
+    "args": {
+      "command": "activate",
+      "index": 1
+    }
+  },
+  {
+    "tool": "select_place",
+    "args": {
+      "places": [
+        {
+          "player": 0,
+          "location": 8,
+          "sequence": 0
+        }
+      ]
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_card",
+    "args": {
+      "indices": [
+        0
+      ]
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_idlecmd",
+    "args": {
+      "command": "activate",
+      "index": 2
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": 0
+    }
+  },
+  {
+    "tool": "select_card",
+    "args": {
+      "indices": [
+        0
+      ]
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_place",
+    "args": {
+      "places": [
+        {
+          "player": 0,
+          "location": 4,
+          "sequence": 1
+        }
+      ]
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_idlecmd",
+    "args": {
+      "command": "activate",
+      "index": 0
+    }
+  },
+  {
+    "tool": "announce_card",
+    "args": {
+      "card_code": 10000040
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_place",
+    "args": {
+      "places": [
+        {
+          "player": 0,
+          "location": 4,
+          "sequence": 2
+        }
+      ]
+    }
+  }
+]

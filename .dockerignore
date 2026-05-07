@@ -1,0 +1,17 @@
+# Keep the build context small; the agent-mcp-eval/ Dockerfile uses
+# explicit COPY for the few paths it needs from the repo root.
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/.git
+**/.gitignore
+**/.venv
+**/venv
+**/env
+**/*.egg-info
+**/node_modules
+**/.DS_Store
+
+# Don't ship run outputs into the image
+results/**

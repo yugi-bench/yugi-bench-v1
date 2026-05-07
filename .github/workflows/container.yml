@@ -1,0 +1,65 @@
+name: container
+
+on:
+  push:
+    branches: [master, main]
+    tags: ["v*"]
+  pull_request:
+    branches: [master, main]
+
+# Build + smoke the engine MCP container. The self-contained Dockerfile
+# clones + compiles libocgcore inside the image, so the runner only
+# needs Docker. On tagged releases we additionally publish the image
+# to GitHub Container Registry.
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build engine MCP image (self-contained)
+        run: |
+          docker build \
+              -f agent-mcp-eval/Dockerfile \
+              -t yugi-bench-env:ci \
+              .
+
+      - name: Image smoke — entrypoint reachable
+        run: |
+          docker run --rm yugi-bench-env:ci --help || true
+          # The MCP server is stdin-driven; an isolated --help flag may
+          # not exist. The non-zero exit is acceptable here so long as
+          # the image starts and the binary is wired in. We follow up
+          # with an explicit replay smoke below.
+
+      - name: Image smoke — engine.replay against shipped solutions
+        run: |
+          docker run --rm \
+              -v "${{ github.workspace }}/solutions:/yugi-bench/solutions:ro" \
+              --entrypoint python yugi-bench-env:ci \
+              -m engine.replay --solutions /yugi-bench/solutions
+
+      # Publish on tagged releases only.
+      - name: Log in to GHCR
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag + push
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/yugi-bench-env"
+          TAG="${GITHUB_REF#refs/tags/}"
+          docker tag yugi-bench-env:ci "$IMAGE:$TAG"
+          docker tag yugi-bench-env:ci "$IMAGE:latest"
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:latest"

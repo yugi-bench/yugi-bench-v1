@@ -1,0 +1,134 @@
+[
+  {
+    "tool": "select_idlecmd",
+    "args": {
+      "command": "activate",
+      "index": 1
+    }
+  },
+  {
+    "tool": "select_place",
+    "args": {
+      "places": [
+        {
+          "player": 0,
+          "location": 8,
+          "sequence": 0
+        }
+      ]
+    }
+  },
+  {
+    "tool": "select_card",
+    "args": {
+      "indices": [
+        1
+      ]
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_idlecmd",
+    "args": {
+      "command": "repos",
+      "index": 2
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_idlecmd",
+    "args": {
+      "command": "sp_summon",
+      "index": 0
+    }
+  },
+  {
+    "tool": "select_unselect_card",
+    "args": {
+      "index": 0
+    }
+  },
+  {
+    "tool": "select_unselect_card",
+    "args": {
+      "index": 0
+    }
+  },
+  {
+    "tool": "select_unselect_card",
+    "args": {
+      "index": 0
+    }
+  },
+  {
+    "tool": "select_place",
+    "args": {
+      "places": [
+        {
+          "player": 0,
+          "location": 4,
+          "sequence": 0
+        }
+      ]
+    }
+  },
+  {
+    "tool": "select_position",
+    "args": {
+      "position": 1
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_idlecmd",
+    "args": {
+      "command": "activate",
+      "index": 6
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  }
+]

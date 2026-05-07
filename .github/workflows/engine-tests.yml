@@ -1,0 +1,49 @@
+name: engine-tests
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+# Engine-backed tests: full setup.sh build + pytest + replay-verify of
+# the shipped machine solutions. Confirms the dry-run path stays green
+# (no API key needed; pure libocgcore + harness + dataset + replay).
+# Allowed to soft-fail when upstream git sources are transiently down,
+# since the unit job already covers most code paths.
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install system build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+              build-essential libstdc++-12-dev premake5
+
+      - name: Bootstrap engine + Python deps via setup.sh
+        run: ./setup.sh --no-verify
+
+      - name: Run full pytest suite (engine-backed)
+        run: |
+          pip install -e ".[dev]"
+          python -m pytest tests/ -v
+
+      - name: Replay-verify shipped solutions (no API key required)
+        run: |
+          python src/engine/replay.py --solutions solutions
+
+      - name: Aggregate dry-run sanity (engine.replay output → aggregate)
+        run: |
+          # Confirm the aggregator's --help is reachable; full aggregator
+          # exercise lives in unit tests against synthetic JSONLs.
+          python api-eval/aggregate.py --help

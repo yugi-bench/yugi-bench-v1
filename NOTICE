@@ -1,0 +1,33 @@
+yugi-bench
+Copyright 2026 The yugi-bench authors
+
+This product includes software developed by the yugi-bench authors,
+licensed under the Apache License, Version 2.0.
+
+This product depends on third-party software:
+
+  - ygopro-core (libocgcore)
+    https://github.com/edo9300/ygopro-core
+    Licensed under the GNU Affero General Public License v3.0
+    Sources are vendored at install time by `setup.sh` and built
+    locally; binaries are not redistributed by this project.
+
+  - ProjectIgnis BabelCDB (Yu-Gi-Oh! card database + script library)
+    https://github.com/ProjectIgnis/BabelCDB
+    https://github.com/ProjectIgnis/CardScripts
+    Card text and Lua scripts are upstream community resources;
+    they are fetched at install time and not redistributed in this
+    repository.
+
+  - ProjectIgnis Puzzles
+    https://github.com/ProjectIgnis/Puzzles
+    The 217-puzzle benchmark is curated and complexity-tagged from
+    upstream Puzzles sources; the curation, complexity tiers,
+    source-kind partition, and replay-verified machine solutions
+    are released under this repository's license.
+
+Yu-Gi-Oh! is a trademark of Konami Digital Entertainment Co., Ltd.
+This project is not affiliated with, endorsed by, or sponsored by
+Konami. Card descriptions and rules text are reconstructed at
+install time from upstream community resources; no copyrighted card
+text is redistributed in this repository.

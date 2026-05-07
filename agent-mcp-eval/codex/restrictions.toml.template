@@ -1,0 +1,115 @@
+# yugi-bench Codex restrictions template.
+#
+# This file is the OPINIONATED LOCKDOWN PROFILE applied to every codex
+# session under `~/yugi-bench-runs/<puzzle>-<ts>-codex/`.  Every key here
+# is documented at the URLs below; check them before changing values.
+#
+#   - https://developers.openai.com/codex/config-reference
+#   - https://github.com/openai/codex/blob/main/docs/config.md
+#
+# THE INTENT — codex CLI as a cheap API substitute.  We want the agent
+# to play yugi-bench puzzles via MCP exactly as it would over the API
+# (one-shot, no web search, no shell, no memory leakage between
+# puzzles), but billed against a ChatGPT Pro/Plus OAuth window instead
+# of API tokens.  The lockdown below enforces that posture.
+#
+# RELAXING — flip any toggle to allow more agentic capability.  Every
+# relaxation has a benchmark-validity cost; the highest-stakes ones:
+#
+#   * `web_search = "disabled"`            → enabling lets the agent
+#     google for puzzle solutions.  This is the dominant leakage path.
+#   * `[features] shell_tool = false`      → enabling gives the agent
+#     a host shell.  It can read your filesystem (incl. solutions/).
+#   * `[features] unified_exec = false`    → same as above.
+#   * `[tools] view_image = false`         → minor; agent could OCR
+#     screenshots but that's not a benchmark integrity risk.
+#   * `[memories] use_memories = false`    → enabling lets earlier
+#     puzzles' state leak into later puzzles' context.
+#
+# MERGED WITH dynamic per-puzzle blocks (mcp_servers, projects.<path>,
+# 25 per-tool approval entries) that the prep script appends below
+# this file's content at workspace-create time.
+
+# ─── Top-level scalars (must come BEFORE any [section] in TOML) ───
+project_root_markers = []
+sandbox_mode = "workspace-write"
+default_permissions = "cwd-only"
+approval_policy = "never"
+model_reasoning_effort = "xhigh"
+web_search = "disabled"
+# Auto-compaction defence in depth.  No documented hard-off switch
+# in codex 0.128 (open feature request: openai/codex#4106), so we
+# push both compaction triggers as far out as codex will accept:
+#
+#   * `model_auto_compact_token_limit` is the explicit-token trigger.
+#     Setting to a sentinel that exceeds any plausible session size
+#     means the explicit trigger never fires.
+#
+#   * `model_context_window` is the context-percentage trigger.
+#     Codex has a hard-coded GPT-5.5 catalog (272K / 400K / 1M depending
+#     on which catalog branch loads); per openai/codex#19409, the
+#     runtime EFFECTIVE window is ~258K (272K × 95%), which is below
+#     the catalog claim of 400K — values between 258K and 400K get
+#     silently clamped down on live sessions.  256K sits just below
+#     the effective floor so it survives intact, leaving the largest
+#     possible headroom Yu-Gi-Oh puzzles will plausibly use without
+#     hitting the runtime cliff.
+#
+# tool_output_token_limit intentionally NOT set — MCP get_state /
+# get_briefing responses are long and truncating them would hurt
+# agent reasoning more than compaction would.
+model_auto_compact_token_limit = 999999999
+model_context_window = 256000
+analytics.enabled = false
+feedback.enabled = false
+check_for_update_on_startup = false
+disable_paste_burst = true
+history.persistence = "none"
+
+# ─── Sandbox: workspace-write, NO network, only results/ writable ───
+# The prep script substitutes __WORKSPACE__ with the actual workspace
+# absolute path before writing the merged config.toml.
+[sandbox_workspace_write]
+network_access = false
+exclude_slash_tmp = true
+exclude_tmpdir_env_var = true
+writable_roots = ["__WORKSPACE__/results"]
+
+# ─── Custom permissions profile referenced by `default_permissions` ───
+[permissions.cwd-only.filesystem]
+":project_roots" = { "." = "read" }
+glob_scan_max_depth = 1
+
+[permissions.cwd-only.network]
+enabled = false
+
+# ─── Disable every codex feature the agent doesn't need for puzzles ───
+[features]
+apps = false
+codex_hooks = false
+fast_mode = false
+memories = false
+multi_agent = false
+personality = false
+prevent_idle_sleep = false
+shell_snapshot = false
+shell_tool = false
+skill_mcp_dependency_install = false
+undo = false
+unified_exec = false
+
+# ─── Disable codex built-in tools (only MCP tools allowed) ───
+[tools]
+view_image = false
+web_search = false
+
+# ─── Apps system fully disabled (catch-all) ───
+[apps._default]
+enabled = false
+destructive_enabled = false
+open_world_enabled = false
+
+# ─── Memory subsystem fully off ───
+[memories]
+use_memories = false
+generate_memories = false

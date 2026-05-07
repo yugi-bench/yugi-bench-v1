@@ -1,0 +1,55 @@
+name: tests
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+# Engine-free unit tests: parsers, encoders, message translators,
+# auto-opponent policy, constants-parity, response-encoding. Runs in a
+# matrix across {ubuntu, macos} × {py 3.11, 3.12, 3.13} so a regression
+# on any platform / interpreter version is caught fast. Engine-backed
+# tests (libocgcore-dependent) live in the engine-tests workflow.
+jobs:
+  unit:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install Python deps (engine-free)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Verify package imports
+        run: |
+          python -c "import engine.core, engine.harness, engine.state, engine.tools, engine.episode, engine.replay, engine.multi_attempt"
+          python -c "import providers, providers.anthropic, providers.openai, providers.deepseek, providers.claude_cli"
+          python -c "import lib.prompt_builder, lib.grammar, lib.glossary, lib.state_render, lib.puzzle_preamble"
+          python -c "import dataset.build_benchmark, dataset.build_verified_subset, dataset.enrich, dataset.dump_prompt"
+
+      - name: CLI help smoke (every entry point exits 0)
+        run: |
+          python api-eval/runner.py --help
+          python src/engine/replay.py --help
+          python src/engine/multi_attempt.py --help
+          python api-eval/aggregate.py --help
+          python src/dataset/dump_prompt.py --help
+          python api-eval/extract_actions.py --help
+
+      - name: Run engine-free unit tests
+        run: |
+          python -m pytest tests/ -q \
+              --ignore=tests/test_episode_smoke.py

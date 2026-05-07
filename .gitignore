@@ -1,0 +1,27 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+.DS_Store
+
+# Evaluation artifacts (keep committed solutions, drop results)
+results/
+solutions/*/raw/
+
+# External dependencies populated by setup.sh
+/vendor/
+
+# Locally-built dataset.  build_benchmark.py produces the lean JSONL
+# from vendor/puzzles/ (ProjectIgnis/Puzzles upstream); build_verified
+# _subset.py filters it; enrich.py joins card_details + prompt back
+# from BabelCDB.  Nothing Konami-derived ships from this repo.  See
+# setup.sh.
+/data/yugioh_bench.jsonl
+/data/yugioh_bench_verified.jsonl
+/data/yugioh_bench.enriched.jsonl
+
+# Legacy out-of-tree dependency layout (kept for backward compat)
+/edopro/
+/distribution/

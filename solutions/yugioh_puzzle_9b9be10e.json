@@ -1,0 +1,62 @@
+[
+  {
+    "tool": "select_yesno",
+    "args": {
+      "accept": true
+    }
+  },
+  {
+    "tool": "announce_card",
+    "args": {
+      "card_code": 33396948
+    }
+  },
+  {
+    "tool": "select_yesno",
+    "args": {
+      "accept": true
+    }
+  },
+  {
+    "tool": "announce_card",
+    "args": {
+      "card_code": 44519536
+    }
+  },
+  {
+    "tool": "select_yesno",
+    "args": {
+      "accept": true
+    }
+  },
+  {
+    "tool": "announce_card",
+    "args": {
+      "card_code": 8124921
+    }
+  },
+  {
+    "tool": "select_yesno",
+    "args": {
+      "accept": true
+    }
+  },
+  {
+    "tool": "announce_card",
+    "args": {
+      "card_code": 70903634
+    }
+  },
+  {
+    "tool": "select_yesno",
+    "args": {
+      "accept": true
+    }
+  },
+  {
+    "tool": "announce_card",
+    "args": {
+      "card_code": 7902349
+    }
+  }
+]

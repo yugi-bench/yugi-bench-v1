@@ -1,0 +1,18 @@
+[
+  {"action": "activate", "card_id": 83764718,
+   "comment": "Activate Monster Reborn, reviving Blue-Eyes White Dragon from your Graveyard (3000 ATK)."},
+  {"action": "repos", "card_id": 15025844,
+   "comment": "Switch your Mystical Elf from face-up Defense to face-up Attack (800 ATK)."},
+  {"action": "summon", "card_id": 97590747, "position": "ATK",
+   "comment": "Normal Summon La Jinn the Mystical Genie of the Lamp in Attack Position (1800 ATK)."},
+  {"action": "to_battle_phase",
+   "comment": "Enter the Battle Phase."},
+  {"action": "attack", "card_id": 89631142, "target": "Battle Ox",
+   "comment": "Blue-Eyes attacks Battle Ox (3000 vs 1700): 1300 damage."},
+  {"action": "attack", "card_id": 97590747, "target": "Mystical Elf",
+   "comment": "La Jinn attacks opponent's Mystical Elf (1800 vs 800): 1000 damage."},
+  {"action": "attack", "card_id": 15025844, "target": "DIRECT",
+   "comment": "Your Mystical Elf attacks directly for the final 800 damage."},
+  {"action": "to_end_phase",
+   "comment": "End the turn."}
+]

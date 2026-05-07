@@ -1,0 +1,72 @@
+[
+  {
+    "tool": "select_idlecmd",
+    "args": {
+      "command": "repos",
+      "index": 0
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_idlecmd",
+    "args": {
+      "command": "to_battle_phase"
+    }
+  },
+  {
+    "tool": "select_battlecmd",
+    "args": {
+      "command": "attack",
+      "index": 0
+    }
+  },
+  {
+    "tool": "select_card",
+    "args": {
+      "indices": [
+        0
+      ]
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  }
+]

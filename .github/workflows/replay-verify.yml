@@ -1,0 +1,39 @@
+name: replay-verify
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  schedule:
+    # Weekly catch-all: surface upstream drift even when the repo is quiet.
+    - cron: "0 6 * * 1"
+
+# Canonical "no API key required" CI signal: build the engine and
+# replay every shipped machine solution. If this stays green, the
+# benchmark itself is reproducible from a clean checkout end to end.
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install system build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+              build-essential libstdc++-12-dev premake5
+
+      - name: Bootstrap engine via setup.sh (no Python pip; replay needs only stdlib + libocgcore)
+        run: ./setup.sh --skip-pip --no-verify
+
+      - name: Replay-verify all shipped solutions
+        run: python src/engine/replay.py --solutions solutions
+
+      - name: Spot-replay one explicit puzzle (verbose)
+        run: python src/engine/replay.py --solutions solutions --only yugioh_puzzle_42ffb7a8 -v

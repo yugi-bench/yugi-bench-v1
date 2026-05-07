@@ -1,0 +1,4 @@
+# Runtime dependencies are provider-specific — install only what you need.
+# The engine and evaluation scripts have no Python dependencies beyond stdlib.
+anthropic>=0.40.0   # for llm_providers.anthropic_provider and providers.anthropic.AnthropicToolProvider
+openai>=1.40.0      # for openai_provider, lmstudio_provider, and vllm_provider

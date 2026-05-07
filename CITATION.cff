@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+title: "yugi-bench: A Long-Horizon Tool-Use Benchmark and Frontier-Model Capability Analysis"
+message: "If you use this benchmark, please cite the accompanying paper."
+type: software
+authors:
+  - name: "The yugi-bench authors"
+repository-code: "https://github.com/yugi-bench/yugi-bench-v1"
+license: Apache-2.0
+keywords:
+  - LLM agents
+  - long-horizon planning
+  - interactive benchmarks
+  - tool use
+  - reinforcement learning
+  - verifiable rewards
+  - agent evaluation
+  - Yu-Gi-Oh
+  - MCP tool server
+preferred-citation:
+  type: conference-paper
+  title: "yugi-bench: A Long-Horizon Tool-Use Benchmark and Frontier-Model Capability Analysis"
+  authors:
+    - name: "The yugi-bench authors"
+  year: 2026
+  collection-title: "Advances in Neural Information Processing Systems 39 (NeurIPS 2026) Evaluations and Datasets Track"

@@ -1,0 +1,197 @@
+[
+  {
+    "tool": "select_idlecmd",
+    "args": {
+      "command": "to_battle_phase"
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_battlecmd",
+    "args": {
+      "command": "attack",
+      "index": 0
+    }
+  },
+  {
+    "tool": "select_card",
+    "args": {
+      "indices": [
+        0
+      ],
+      "cancel": false
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_effectyn",
+    "args": {
+      "accept": true
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_place",
+    "args": {
+      "places": [
+        {
+          "player": 0,
+          "location": 4,
+          "sequence": 1
+        }
+      ]
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_battlecmd",
+    "args": {
+      "command": "activate",
+      "index": 0
+    }
+  },
+  {
+    "tool": "select_place",
+    "args": {
+      "places": [
+        {
+          "player": 0,
+          "location": 8,
+          "sequence": 1
+        }
+      ]
+    }
+  },
+  {
+    "tool": "select_option",
+    "args": {
+      "index": 1
+    }
+  },
+  {
+    "tool": "select_unselect_card",
+    "args": {
+      "index": 0
+    }
+  },
+  {
+    "tool": "select_card",
+    "args": {
+      "indices": [
+        0
+      ],
+      "cancel": false
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_place",
+    "args": {
+      "places": [
+        {
+          "player": 0,
+          "location": 4,
+          "sequence": 1
+        }
+      ]
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_battlecmd",
+    "args": {
+      "command": "attack",
+      "index": 0
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  },
+  {
+    "tool": "select_chain",
+    "args": {
+      "index": null
+    }
+  }
+]
