@@ -39,24 +39,26 @@ from .base import (
     ToolSchema,
 )
 
-
 # ---------------------------------------------------------------------------
 # Translation helpers (OpenAI-specific wire format)
 # ---------------------------------------------------------------------------
+
 
 def _to_openai_tools(tools: list[ToolSchema]) -> list[dict[str, Any]]:
     """Wrap canonical ``{name, description, input_schema}`` tool defs
     in OpenAI's ``{type: "function", function: {...}}`` envelope."""
     out: list[dict[str, Any]] = []
     for t in tools:
-        out.append({
-            "type": "function",
-            "function": {
-                "name": t["name"],
-                "description": t.get("description", ""),
-                "parameters": t.get("input_schema") or {"type": "object", "properties": {}},
-            },
-        })
+        out.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": t["name"],
+                    "description": t.get("description", ""),
+                    "parameters": t.get("input_schema") or {"type": "object", "properties": {}},
+                },
+            }
+        )
     return out
 
 
@@ -85,14 +87,16 @@ def _to_openai_messages(
             msg["content"] = text  # OpenAI accepts null when tool_calls is set
             tcs = []
             for tc in m.get("tool_calls", []) or []:
-                tcs.append({
-                    "id": tc["id"],
-                    "type": "function",
-                    "function": {
-                        "name": tc["name"],
-                        "arguments": json.dumps(tc.get("arguments", {})),
-                    },
-                })
+                tcs.append(
+                    {
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {
+                            "name": tc["name"],
+                            "arguments": json.dumps(tc.get("arguments", {})),
+                        },
+                    }
+                )
             if tcs:
                 msg["tool_calls"] = tcs
             # Carry reasoning_content back if present (parity with
@@ -104,11 +108,13 @@ def _to_openai_messages(
             out.append(msg)
             continue
         if role == "tool":
-            out.append({
-                "role": "tool",
-                "tool_call_id": m["tool_call_id"],
-                "content": m["content"],
-            })
+            out.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": m["tool_call_id"],
+                    "content": m["content"],
+                }
+            )
             continue
     return out
 
@@ -151,8 +157,13 @@ def _extract_usage(usage_obj: Any) -> dict[str, Any]:
     if usage_obj is None:
         return {}
     out: dict[str, Any] = {}
-    for attr in ("prompt_tokens", "completion_tokens", "total_tokens",
-                 "cached_tokens", "reasoning_tokens"):
+    for attr in (
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "cached_tokens",
+        "reasoning_tokens",
+    ):
         v = getattr(usage_obj, attr, None)
         if v is not None:
             out[attr] = v
@@ -167,6 +178,7 @@ def _extract_usage(usage_obj: Any) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # OpenAI provider
 # ---------------------------------------------------------------------------
+
 
 class OpenAIToolProvider(ToolCallingProvider):
     """OpenAI chat-completions tool-calling provider.
@@ -193,6 +205,7 @@ class OpenAIToolProvider(ToolCallingProvider):
         parallel_tool_calls: bool | None = None,
     ):
         import os
+
         try:
             import openai
         except ImportError as e:
@@ -271,16 +284,18 @@ class OpenAIToolProvider(ToolCallingProvider):
         # losing the entire chain-of-thought.
         reasoning_content = getattr(msg, "reasoning_content", None) or ""
         tool_calls: list[ToolCall] = []
-        for tc in (msg.tool_calls or []):
+        for tc in msg.tool_calls or []:
             try:
                 args = json.loads(tc.function.arguments or "{}")
             except json.JSONDecodeError:
                 args = {}
-            tool_calls.append(ToolCall(
-                id=tc.id,
-                name=tc.function.name,
-                arguments=args if isinstance(args, dict) else {},
-            ))
+            tool_calls.append(
+                ToolCall(
+                    id=tc.id,
+                    name=tc.function.name,
+                    arguments=args if isinstance(args, dict) else {},
+                )
+            )
         return ModelTurn(
             text=text,
             tool_calls=tool_calls,
@@ -301,6 +316,7 @@ class OpenAIToolProvider(ToolCallingProvider):
 # ---------------------------------------------------------------------------
 # vLLM alias
 # ---------------------------------------------------------------------------
+
 
 class VLLMToolProvider(OpenAIToolProvider):
     """Thin alias for a vLLM server speaking OpenAI-compat tool-use.
@@ -323,6 +339,9 @@ class VLLMToolProvider(OpenAIToolProvider):
         temperature: float = 0.0,
     ):
         super().__init__(
-            model=model, api_key=api_key, base_url=base_url,
-            max_tokens=max_tokens, temperature=temperature,
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            max_tokens=max_tokens,
+            temperature=temperature,
         )

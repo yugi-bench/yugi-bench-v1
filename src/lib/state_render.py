@@ -22,17 +22,14 @@ Used by:
 from __future__ import annotations
 
 import json
-from typing import Any
 
 from engine.core import (
-    CardDB,
     LOCATION_DECK,
+    LOCATION_EXTRA,
     LOCATION_HAND,
     LOCATION_MZONE,
     LOCATION_SZONE,
-    LOCATION_GRAVE,
-    LOCATION_REMOVED,
-    LOCATION_EXTRA,
+    CardDB,
     OCGEngine,
 )
 from engine.harness import Harness
@@ -72,8 +69,7 @@ def render_omniscient_state(harness: Harness, card_db: CardDB) -> str:
     Output is a JSON code block under a ``## Game State (full)`` heading.
     """
     engine = harness.engine
-    visible = build_state(harness, card_db, perspective=0,
-                          include_decision=False)
+    visible = build_state(harness, card_db, perspective=0, include_decision=False)
 
     # Annotate decks for both players, in the engine's stored order.
     deck_p0 = _query_codes(engine, 0, LOCATION_DECK)
@@ -83,15 +79,15 @@ def render_omniscient_state(harness: Harness, card_db: CardDB) -> str:
     hand_p1 = _query_codes(engine, 1, LOCATION_HAND)
 
     def _card_dicts(codes: list[int]) -> list[dict]:
-        return [{"code": c, "name": (card_db.get(c) or {}).get("name", f"Card #{c}")}
-                for c in codes]
+        return [
+            {"code": c, "name": (card_db.get(c) or {}).get("name", f"Card #{c}")} for c in codes
+        ]
 
     # Reveal opponent's set spells/traps + set monsters by querying the
     # engine for their underlying card codes (visible state masks
     # face-down opp cards).
     opp = visible.get("opponent", {}) or {}
-    for zone_key, loc in (("monster_zone", LOCATION_MZONE),
-                          ("spell_trap_zone", LOCATION_SZONE)):
+    for zone_key, loc in (("monster_zone", LOCATION_MZONE), ("spell_trap_zone", LOCATION_SZONE)):
         zones = opp.get(zone_key) or []
         for entry in zones:
             if not isinstance(entry, dict):
@@ -107,8 +103,7 @@ def render_omniscient_state(harness: Harness, card_db: CardDB) -> str:
                 code = int(card["code"])
                 entry.setdefault("card", {})
                 entry["card"]["code"] = code
-                entry["card"]["name"] = (card_db.get(code) or {}).get(
-                    "name", f"Card #{code}")
+                entry["card"]["name"] = (card_db.get(code) or {}).get("name", f"Card #{code}")
                 entry["card"]["_revealed_from_face_down"] = True
 
     payload = {
@@ -146,8 +141,7 @@ def render_visible_state(harness: Harness, card_db: CardDB) -> str:
     deck counts visible but not contents.  Identical to what
     ``engine.state.build_state`` already produces for ``perspective=0``.
     """
-    state = build_state(harness, card_db, perspective=0,
-                        include_decision=False)
+    state = build_state(harness, card_db, perspective=0, include_decision=False)
     rendered = json.dumps(state, indent=2, default=str)
     return (
         "## Game State (visible)\n\n"

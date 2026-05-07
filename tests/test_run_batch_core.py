@@ -15,18 +15,17 @@ claude / docker.  Covers:
     * concurrency dispatches to ThreadPoolExecutor
     * rate-limit retry semantics
 """
+
 from __future__ import annotations
 
 import json
 import signal
 import subprocess
 import sys
-import time
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 # Make agent-mcp-eval/_lib importable.  The dir is hyphenated so
 # Python can't import it as a package; we sys.path-insert the _lib/
@@ -36,10 +35,10 @@ sys.path.insert(0, str(_REPO_ROOT / "agent-mcp-eval" / "_lib"))
 
 import run_batch_core as rbc  # noqa: E402
 
-
 # ---------------------------------------------------------------------------
 # Workspace fixtures
 # ---------------------------------------------------------------------------
+
 
 def _make_workspace(
     runs_root: Path,
@@ -56,9 +55,15 @@ def _make_workspace(
     ws = runs_root / f"{puzzle_id}-2026-01-01T00-00-00{suffix}"
     ws.mkdir(parents=True)
     (ws / "results").mkdir()
-    (ws / "metadata.json").write_text(json.dumps({
-        "puzzle_id": puzzle_id, "agent": agent, "started_at": "2026-01-01T00-00-00",
-    }))
+    (ws / "metadata.json").write_text(
+        json.dumps(
+            {
+                "puzzle_id": puzzle_id,
+                "agent": agent,
+                "started_at": "2026-01-01T00-00-00",
+            }
+        )
+    )
     if with_outcome:
         (ws / "results" / f"{puzzle_id}.jsonl").write_text(
             '{"type":"config"}\n'
@@ -66,9 +71,7 @@ def _make_workspace(
             '{"type":"outcome","termination":"game_over","winner":0}\n'
         )
     elif with_partial:
-        (ws / "results" / f"{puzzle_id}.jsonl").write_text(
-            '{"type":"config"}\n{"type":"start"}\n'
-        )
+        (ws / "results" / f"{puzzle_id}.jsonl").write_text('{"type":"config"}\n{"type":"start"}\n')
     if with_launcher:
         launcher = ws / f"run-{agent}-exec.sh"
         launcher.write_text("#!/bin/sh\nexit 0\n")
@@ -80,11 +83,14 @@ def _make_workspace(
 # WorkspaceState.has_outcome
 # ---------------------------------------------------------------------------
 
+
 def test_has_outcome_true_when_outcome_event_present(tmp_path):
     ws = _make_workspace(tmp_path, "yugioh_puzzle_aaa", "codex", with_outcome=True)
     state = rbc.WorkspaceState(
-        workspace=ws, metadata={"puzzle_id": "yugioh_puzzle_aaa"},
-        puzzle_id="yugioh_puzzle_aaa", agent="codex",
+        workspace=ws,
+        metadata={"puzzle_id": "yugioh_puzzle_aaa"},
+        puzzle_id="yugioh_puzzle_aaa",
+        agent="codex",
         jsonl=ws / "results" / "yugioh_puzzle_aaa.jsonl",
         launcher=ws / "run-codex-exec.sh",
     )
@@ -94,8 +100,10 @@ def test_has_outcome_true_when_outcome_event_present(tmp_path):
 def test_has_outcome_false_when_partial(tmp_path):
     ws = _make_workspace(tmp_path, "yugioh_puzzle_bbb", "codex", with_partial=True)
     state = rbc.WorkspaceState(
-        workspace=ws, metadata={"puzzle_id": "yugioh_puzzle_bbb"},
-        puzzle_id="yugioh_puzzle_bbb", agent="codex",
+        workspace=ws,
+        metadata={"puzzle_id": "yugioh_puzzle_bbb"},
+        puzzle_id="yugioh_puzzle_bbb",
+        agent="codex",
         jsonl=ws / "results" / "yugioh_puzzle_bbb.jsonl",
         launcher=ws / "run-codex-exec.sh",
     )
@@ -105,8 +113,10 @@ def test_has_outcome_false_when_partial(tmp_path):
 def test_has_outcome_false_when_jsonl_missing(tmp_path):
     ws = _make_workspace(tmp_path, "yugioh_puzzle_ccc", "codex")
     state = rbc.WorkspaceState(
-        workspace=ws, metadata={"puzzle_id": "yugioh_puzzle_ccc"},
-        puzzle_id="yugioh_puzzle_ccc", agent="codex",
+        workspace=ws,
+        metadata={"puzzle_id": "yugioh_puzzle_ccc"},
+        puzzle_id="yugioh_puzzle_ccc",
+        agent="codex",
         jsonl=ws / "results" / "yugioh_puzzle_ccc.jsonl",
         launcher=ws / "run-codex-exec.sh",
     )
@@ -118,13 +128,13 @@ def test_has_outcome_tolerates_garbage_lines(tmp_path):
     outcome event appears later."""
     ws = _make_workspace(tmp_path, "yugioh_puzzle_ddd", "codex")
     (ws / "results" / "yugioh_puzzle_ddd.jsonl").write_text(
-        '{"type":"config"}\n'
-        'not-json-garbage\n'
-        '{"type":"outcome","winner":0}\n'
+        '{"type":"config"}\nnot-json-garbage\n{"type":"outcome","winner":0}\n'
     )
     state = rbc.WorkspaceState(
-        workspace=ws, metadata={"puzzle_id": "yugioh_puzzle_ddd"},
-        puzzle_id="yugioh_puzzle_ddd", agent="codex",
+        workspace=ws,
+        metadata={"puzzle_id": "yugioh_puzzle_ddd"},
+        puzzle_id="yugioh_puzzle_ddd",
+        agent="codex",
         jsonl=ws / "results" / "yugioh_puzzle_ddd.jsonl",
         launcher=ws / "run-codex-exec.sh",
     )
@@ -134,6 +144,7 @@ def test_has_outcome_tolerates_garbage_lines(tmp_path):
 # ---------------------------------------------------------------------------
 # discover_workspaces filtering
 # ---------------------------------------------------------------------------
+
 
 def test_discover_workspaces_filters_by_agent(tmp_path):
     _make_workspace(tmp_path, "yugioh_puzzle_x1", "codex")
@@ -170,6 +181,7 @@ def test_discover_workspaces_sorts_verified_first_then_complexity(tmp_path):
     tiers, prep workspaces in reverse-dataset order, and verify the
     sort puts them in priority order."""
     import json
+
     dataset_path = _REPO_ROOT / "data" / "yugioh_bench.jsonl"
     verified_path = _REPO_ROOT / "data" / "yugioh_bench_verified.jsonl"
     if not dataset_path.exists():
@@ -210,20 +222,24 @@ def test_discover_workspaces_sorts_verified_first_then_complexity(tmp_path):
 # detect_rate_limit
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("text,expected", [
-    ("rate limit exceeded", True),
-    ("Rate Limit", True),
-    ("HTTP 429 Too Many Requests", True),
-    ("Quota exceeded for org", True),
-    ("you have been rate-limited", True),
-    ("5h window cap reached", True),
-    ("7-day window quota", True),
-    ("usage limit hit", True),
-    ("please try again later", True),
-    ("normal completion", False),
-    ("connection refused", False),
-    ("session ended cleanly with outcome event", False),
-])
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("rate limit exceeded", True),
+        ("Rate Limit", True),
+        ("HTTP 429 Too Many Requests", True),
+        ("Quota exceeded for org", True),
+        ("you have been rate-limited", True),
+        ("5h window cap reached", True),
+        ("7-day window quota", True),
+        ("usage limit hit", True),
+        ("please try again later", True),
+        ("normal completion", False),
+        ("connection refused", False),
+        ("session ended cleanly with outcome event", False),
+    ],
+)
 def test_detect_rate_limit(text: str, expected: bool):
     assert rbc.detect_rate_limit(text, "") == expected
     # Same patterns in stderr should also fire.
@@ -234,18 +250,19 @@ def test_detect_rate_limit(text: str, expected: bool):
 # usage_preflight_pause_seconds
 # ---------------------------------------------------------------------------
 
+
 def test_preflight_below_threshold_returns_none():
     usage = {
-        "five_hour":  {"utilization": 50.0, "resets_at": "2099-01-01T00:00:00+00:00"},
-        "seven_day":  {"utilization": 30.0, "resets_at": "2099-01-01T00:00:00+00:00"},
+        "five_hour": {"utilization": 50.0, "resets_at": "2099-01-01T00:00:00+00:00"},
+        "seven_day": {"utilization": 30.0, "resets_at": "2099-01-01T00:00:00+00:00"},
     }
     assert rbc.usage_preflight_pause_seconds(usage, 80, 95, 3600) is None
 
 
 def test_preflight_5h_over_threshold_pauses():
     usage = {
-        "five_hour":  {"utilization": 90.0, "resets_at": "2099-01-01T00:00:00+00:00"},
-        "seven_day":  {"utilization": 30.0, "resets_at": "2099-01-01T00:00:00+00:00"},
+        "five_hour": {"utilization": 90.0, "resets_at": "2099-01-01T00:00:00+00:00"},
+        "seven_day": {"utilization": 30.0, "resets_at": "2099-01-01T00:00:00+00:00"},
     }
     result = rbc.usage_preflight_pause_seconds(usage, 80, 95, 3600)
     assert result is not None
@@ -256,8 +273,8 @@ def test_preflight_5h_over_threshold_pauses():
 
 def test_preflight_7d_over_threshold_pauses():
     usage = {
-        "five_hour":  {"utilization": 50.0, "resets_at": "2099-01-01T00:00:00+00:00"},
-        "seven_day":  {"utilization": 99.0, "resets_at": "2099-01-01T00:00:00+00:00"},
+        "five_hour": {"utilization": 50.0, "resets_at": "2099-01-01T00:00:00+00:00"},
+        "seven_day": {"utilization": 99.0, "resets_at": "2099-01-01T00:00:00+00:00"},
     }
     result = rbc.usage_preflight_pause_seconds(usage, 80, 95, 3600)
     assert result is not None
@@ -269,7 +286,7 @@ def test_preflight_7d_over_threshold_pauses():
 def test_preflight_pause_capped_by_max():
     """Reset is far in the future; pause should be capped by cap_pause_seconds."""
     usage = {
-        "five_hour":  {"utilization": 100.0, "resets_at": "2099-01-01T00:00:00+00:00"},
+        "five_hour": {"utilization": 100.0, "resets_at": "2099-01-01T00:00:00+00:00"},
     }
     result = rbc.usage_preflight_pause_seconds(usage, 80, 95, 60)
     assert result is not None
@@ -286,17 +303,20 @@ def test_preflight_missing_utilization_skipped():
 # extract_usage_from_log — token-count parsing across both agents
 # ---------------------------------------------------------------------------
 
+
 def test_extract_usage_claude_stream_json_result_event():
     """Claude --print --output-format=stream-json --verbose emits one
     JSON object per line.  The final 'result'-shaped event carries
     cumulative usage (input_tokens + cache_*_input_tokens summed)."""
-    stdout = "\n".join([
-        '{"type":"system","subtype":"init","model":"claude-opus-4-7"}',
-        '{"type":"assistant","message":{"role":"assistant","usage":{"input_tokens":50,"output_tokens":120,"cache_creation_input_tokens":2000,"cache_read_input_tokens":0}}}',
-        '{"type":"user","message":{"role":"user"}}',
-        '{"type":"assistant","message":{"role":"assistant","usage":{"input_tokens":30,"output_tokens":60,"cache_creation_input_tokens":0,"cache_read_input_tokens":2120}}}',
-        '{"type":"result","usage":{"input_tokens":80,"output_tokens":180,"cache_creation_input_tokens":2000,"cache_read_input_tokens":2120}}',
-    ])
+    stdout = "\n".join(
+        [
+            '{"type":"system","subtype":"init","model":"claude-opus-4-7"}',
+            '{"type":"assistant","message":{"role":"assistant","usage":{"input_tokens":50,"output_tokens":120,"cache_creation_input_tokens":2000,"cache_read_input_tokens":0}}}',
+            '{"type":"user","message":{"role":"user"}}',
+            '{"type":"assistant","message":{"role":"assistant","usage":{"input_tokens":30,"output_tokens":60,"cache_creation_input_tokens":0,"cache_read_input_tokens":2120}}}',
+            '{"type":"result","usage":{"input_tokens":80,"output_tokens":180,"cache_creation_input_tokens":2000,"cache_read_input_tokens":2120}}',
+        ]
+    )
     u = rbc.extract_usage_from_log(stdout)
     assert u == {"in": 80 + 2000 + 2120, "out": 180, "total": 80 + 2000 + 2120 + 180}
 
@@ -304,11 +324,13 @@ def test_extract_usage_claude_stream_json_result_event():
 def test_extract_usage_codex_json_prompt_completion():
     """Codex --json: schema undocumented, but 'prompt_tokens' /
     'completion_tokens' is the OpenAI-API convention.  Track latest."""
-    stdout = "\n".join([
-        '{"type":"started","model":"gpt-5.5"}',
-        '{"type":"agent_message","usage":{"prompt_tokens":1000,"completion_tokens":500}}',
-        '{"type":"task_complete","usage":{"prompt_tokens":3500,"completion_tokens":1800}}',
-    ])
+    stdout = "\n".join(
+        [
+            '{"type":"started","model":"gpt-5.5"}',
+            '{"type":"agent_message","usage":{"prompt_tokens":1000,"completion_tokens":500}}',
+            '{"type":"task_complete","usage":{"prompt_tokens":3500,"completion_tokens":1800}}',
+        ]
+    )
     u = rbc.extract_usage_from_log(stdout)
     assert u == {"in": 3500, "out": 1800, "total": 5300}
 
@@ -336,11 +358,13 @@ def test_extract_usage_handles_partial_input_only():
 def test_extract_usage_skips_corrupt_lines():
     """A non-JSON line in the middle of valid events doesn't kill
     parsing; the helper recovers and uses the latest valid event."""
-    stdout = "\n".join([
-        '{"type":"a","usage":{"input_tokens":10,"output_tokens":5}}',
-        'this is not json',
-        '{"type":"b","usage":{"input_tokens":20,"output_tokens":15}}',
-    ])
+    stdout = "\n".join(
+        [
+            '{"type":"a","usage":{"input_tokens":10,"output_tokens":5}}',
+            "this is not json",
+            '{"type":"b","usage":{"input_tokens":20,"output_tokens":15}}',
+        ]
+    )
     u = rbc.extract_usage_from_log(stdout)
     assert u == {"in": 20, "out": 15, "total": 35}
 
@@ -349,11 +373,14 @@ def test_extract_usage_skips_corrupt_lines():
 # run_one wrapping subprocess.run
 # ---------------------------------------------------------------------------
 
+
 def test_run_one_success_when_outcome_present(tmp_path):
     ws = _make_workspace(tmp_path, "yugioh_puzzle_z1", "codex", with_outcome=True)
     state = rbc.WorkspaceState(
-        workspace=ws, metadata={"puzzle_id": "yugioh_puzzle_z1"},
-        puzzle_id="yugioh_puzzle_z1", agent="codex",
+        workspace=ws,
+        metadata={"puzzle_id": "yugioh_puzzle_z1"},
+        puzzle_id="yugioh_puzzle_z1",
+        agent="codex",
         jsonl=ws / "results" / "yugioh_puzzle_z1.jsonl",
         launcher=ws / "run-codex-exec.sh",
     )
@@ -368,14 +395,18 @@ def test_run_one_success_when_outcome_present(tmp_path):
 def test_run_one_rate_limited_pattern(tmp_path):
     ws = _make_workspace(tmp_path, "yugioh_puzzle_z2", "codex")  # no outcome
     state = rbc.WorkspaceState(
-        workspace=ws, metadata={"puzzle_id": "yugioh_puzzle_z2"},
-        puzzle_id="yugioh_puzzle_z2", agent="codex",
+        workspace=ws,
+        metadata={"puzzle_id": "yugioh_puzzle_z2"},
+        puzzle_id="yugioh_puzzle_z2",
+        agent="codex",
         jsonl=ws / "results" / "yugioh_puzzle_z2.jsonl",
         launcher=ws / "run-codex-exec.sh",
     )
     with patch("run_batch_core.subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(
-            returncode=1, stdout="", stderr="HTTP 429 rate limit",
+            returncode=1,
+            stdout="",
+            stderr="HTTP 429 rate limit",
         )
         ok, rate_limited, summary, _, _, _ = rbc.run_one(state, 60)
     assert ok is False
@@ -386,8 +417,10 @@ def test_run_one_rate_limited_pattern(tmp_path):
 def test_run_one_failure_no_outcome(tmp_path):
     ws = _make_workspace(tmp_path, "yugioh_puzzle_z3", "codex")  # no outcome
     state = rbc.WorkspaceState(
-        workspace=ws, metadata={"puzzle_id": "yugioh_puzzle_z3"},
-        puzzle_id="yugioh_puzzle_z3", agent="codex",
+        workspace=ws,
+        metadata={"puzzle_id": "yugioh_puzzle_z3"},
+        puzzle_id="yugioh_puzzle_z3",
+        agent="codex",
         jsonl=ws / "results" / "yugioh_puzzle_z3.jsonl",
         launcher=ws / "run-codex-exec.sh",
     )
@@ -403,6 +436,7 @@ def test_run_one_failure_no_outcome(tmp_path):
 # Resilience: a single bad workspace must not kill the batch
 # ---------------------------------------------------------------------------
 
+
 def test_detect_rate_limit_skips_informational_stream_json_event():
     """claude --print --output-format=stream-json emits
     {"type":"rate_limit_event","rate_limit_info":{"status":"allowed",...}}
@@ -411,12 +445,14 @@ def test_detect_rate_limit_skips_informational_stream_json_event():
     (2026-05-07 batch 2), this caused 0816c364 to spin in a 15-attempt
     retry loop because every retry's informational rate-limit-event
     falsely matched.  Pin: status="allowed" must NOT be flagged."""
-    stdout = '\n'.join([
-        '{"type":"system","subtype":"init"}',
-        '{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1778138400,"rateLimitType":"five_hour","overageStatus":"ok"}}',
-        '{"type":"assistant","message":{"content":[{"type":"text","text":"playing puzzle"}]}}',
-        '{"type":"result","subtype":"success","is_error":false,"result":"WIN"}',
-    ])
+    stdout = "\n".join(
+        [
+            '{"type":"system","subtype":"init"}',
+            '{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1778138400,"rateLimitType":"five_hour","overageStatus":"ok"}}',
+            '{"type":"assistant","message":{"content":[{"type":"text","text":"playing puzzle"}]}}',
+            '{"type":"result","subtype":"success","is_error":false,"result":"WIN"}',
+        ]
+    )
     assert rbc.detect_rate_limit(stdout, "") is False
 
 
@@ -467,10 +503,12 @@ def test_detect_rate_limit_does_not_flag_agent_text_mentioning_rate():
     structurally, but if they ARE inside an assistant.text content,
     the JSON-line detector skips that LINE entirely so the regex
     doesn't see it.  Validate."""
-    stdout = '\n'.join([
-        '{"type":"assistant","message":{"content":[{"type":"text","text":"I will increase the damage rate this turn"}]}}',
-        '{"type":"result","subtype":"success","is_error":false,"result":"WIN"}',
-    ])
+    stdout = "\n".join(
+        [
+            '{"type":"assistant","message":{"content":[{"type":"text","text":"I will increase the damage rate this turn"}]}}',
+            '{"type":"result","subtype":"success","is_error":false,"result":"WIN"}',
+        ]
+    )
     # The line is JSON, so the structural pass skips it (it's not a
     # rate_limit_event), and the regex fallback strips the JSON line.
     assert rbc.detect_rate_limit(stdout, "") is False
@@ -502,8 +540,10 @@ def test_run_one_timeout_decodes_bytes_and_does_not_raise(tmp_path):
     Pin: TimeoutExpired with bytes stdout/stderr must round-trip cleanly."""
     ws = _make_workspace(tmp_path, "yugioh_puzzle_zt", "codex")
     state = rbc.WorkspaceState(
-        workspace=ws, metadata={"puzzle_id": "yugioh_puzzle_zt"},
-        puzzle_id="yugioh_puzzle_zt", agent="codex",
+        workspace=ws,
+        metadata={"puzzle_id": "yugioh_puzzle_zt"},
+        puzzle_id="yugioh_puzzle_zt",
+        agent="codex",
         jsonl=ws / "results" / "yugioh_puzzle_zt.jsonl",
         launcher=ws / "run-codex-exec.sh",
     )
@@ -539,8 +579,10 @@ def test_run_one_timeout_with_outcome_counts_as_success(tmp_path):
     timeout path."""
     ws = _make_workspace(tmp_path, "yugioh_puzzle_zo", "codex", with_outcome=True)
     state = rbc.WorkspaceState(
-        workspace=ws, metadata={"puzzle_id": "yugioh_puzzle_zo"},
-        puzzle_id="yugioh_puzzle_zo", agent="codex",
+        workspace=ws,
+        metadata={"puzzle_id": "yugioh_puzzle_zo"},
+        puzzle_id="yugioh_puzzle_zo",
+        agent="codex",
         jsonl=ws / "results" / "yugioh_puzzle_zo.jsonl",
         launcher=ws / "run-codex-exec.sh",
     )
@@ -589,13 +631,17 @@ def test_run_one_handles_missing_launcher(tmp_path):
     folded into a (False, False, ...) result instead of raising."""
     ws = _make_workspace(tmp_path, "yugioh_puzzle_zm", "codex")
     state = rbc.WorkspaceState(
-        workspace=ws, metadata={"puzzle_id": "yugioh_puzzle_zm"},
-        puzzle_id="yugioh_puzzle_zm", agent="codex",
+        workspace=ws,
+        metadata={"puzzle_id": "yugioh_puzzle_zm"},
+        puzzle_id="yugioh_puzzle_zm",
+        agent="codex",
         jsonl=ws / "results" / "yugioh_puzzle_zm.jsonl",
         launcher=ws / "run-codex-exec.sh",
     )
     with patch("run_batch_core.subprocess.run") as mock_run:
-        mock_run.side_effect = FileNotFoundError(2, "No such file or directory", "run-codex-exec.sh")
+        mock_run.side_effect = FileNotFoundError(
+            2, "No such file or directory", "run-codex-exec.sh"
+        )
         ok, rate_limited, summary, _, _, _ = rbc.run_one(state, 60)
     assert ok is False
     assert rate_limited is False
@@ -606,8 +652,10 @@ def test_run_one_handles_missing_launcher(tmp_path):
 def test_run_one_handles_permission_error(tmp_path):
     ws = _make_workspace(tmp_path, "yugioh_puzzle_zp", "codex")
     state = rbc.WorkspaceState(
-        workspace=ws, metadata={"puzzle_id": "yugioh_puzzle_zp"},
-        puzzle_id="yugioh_puzzle_zp", agent="codex",
+        workspace=ws,
+        metadata={"puzzle_id": "yugioh_puzzle_zp"},
+        puzzle_id="yugioh_puzzle_zp",
+        agent="codex",
         jsonl=ws / "results" / "yugioh_puzzle_zp.jsonl",
         launcher=ws / "run-codex-exec.sh",
     )
@@ -625,8 +673,10 @@ def test_run_one_handles_unexpected_exception(tmp_path):
     into a failed result via the defensive Exception handler."""
     ws = _make_workspace(tmp_path, "yugioh_puzzle_zu", "codex")
     state = rbc.WorkspaceState(
-        workspace=ws, metadata={"puzzle_id": "yugioh_puzzle_zu"},
-        puzzle_id="yugioh_puzzle_zu", agent="codex",
+        workspace=ws,
+        metadata={"puzzle_id": "yugioh_puzzle_zu"},
+        puzzle_id="yugioh_puzzle_zu",
+        agent="codex",
         jsonl=ws / "results" / "yugioh_puzzle_zu.jsonl",
         launcher=ws / "run-codex-exec.sh",
     )
@@ -645,19 +695,25 @@ def test_process_workspace_never_raises(tmp_path, capsys):
     surrounding batch loop sees a normal return.  Failure is counted."""
     ws = _make_workspace(tmp_path, "yugioh_puzzle_zw", "codex")
     state = rbc.WorkspaceState(
-        workspace=ws, metadata={"puzzle_id": "yugioh_puzzle_zw"},
-        puzzle_id="yugioh_puzzle_zw", agent="codex",
+        workspace=ws,
+        metadata={"puzzle_id": "yugioh_puzzle_zw"},
+        puzzle_id="yugioh_puzzle_zw",
+        agent="codex",
         jsonl=ws / "results" / "yugioh_puzzle_zw.jsonl",
         launcher=ws / "run-codex-exec.sh",
     )
-    args = type("Args", (), {
-        "no_preflight": True,
-        "per_session_timeout_seconds": 60,
-        "rate_limit_pause_seconds": 3600,
-        "max_rate_limit_retries": 5,
-        "five_hour_stop_pct": 80,
-        "seven_day_stop_pct": 95,
-    })()
+    args = type(
+        "Args",
+        (),
+        {
+            "no_preflight": True,
+            "per_session_timeout_seconds": 60,
+            "rate_limit_pause_seconds": 3600,
+            "max_rate_limit_retries": 5,
+            "five_hour_stop_pct": 80,
+            "seven_day_stop_pct": 95,
+        },
+    )()
     batch = rbc.BatchState(agent="codex", args=args)
     # Force run_one to raise (bypasses its own catch-all).
     with patch("run_batch_core.run_one", side_effect=ValueError("kaboom")):
@@ -706,13 +762,16 @@ def test_main_continues_after_single_workspace_exception(tmp_path):
 # main() — end-to-end with mocked subprocess
 # ---------------------------------------------------------------------------
 
+
 def _run_main_with_mocks(agent, runs_root, mock_run_side_effect, *extra_args):
     """Drive main() against a synthetic runs_root.  Mocks subprocess.run
     so we don't actually execute the launchers; mocks the HTTP probe so
     we don't hit network."""
     argv = ["--runs-root", str(runs_root), "--no-preflight"] + list(extra_args)
-    with patch("run_batch_core.subprocess.run") as mock_run, \
-         patch("run_batch_core.fetch_usage", return_value=None):
+    with (
+        patch("run_batch_core.subprocess.run") as mock_run,
+        patch("run_batch_core.fetch_usage", return_value=None),
+    ):
         mock_run.side_effect = mock_run_side_effect
         rc = rbc.main(agent, argv)
     return rc, mock_run
@@ -735,7 +794,7 @@ def test_main_skips_done_workspaces(tmp_path, capsys):
 
 def test_main_runs_pending_workspaces(tmp_path, capsys):
     pending_ws = _make_workspace(tmp_path, "yugioh_puzzle_p1", "codex")
-    done_ws = _make_workspace(tmp_path, "yugioh_puzzle_p2", "codex", with_outcome=True)
+    _make_workspace(tmp_path, "yugioh_puzzle_p2", "codex", with_outcome=True)
 
     def side_effect(*args, **kwargs):
         # When the launcher is "run", create the outcome event so
@@ -759,9 +818,7 @@ def test_main_idempotent_re_invocation(tmp_path, capsys):
     ws = _make_workspace(tmp_path, "yugioh_puzzle_i1", "codex")
 
     def first_run_side_effect(*args, **kwargs):
-        (ws / "results" / "yugioh_puzzle_i1.jsonl").write_text(
-            '{"type":"outcome","winner":0}\n'
-        )
+        (ws / "results" / "yugioh_puzzle_i1.jsonl").write_text('{"type":"outcome","winner":0}\n')
         return MagicMock(returncode=0, stdout="", stderr="")
 
     rc, mock_run = _run_main_with_mocks("codex", tmp_path, first_run_side_effect)
@@ -813,9 +870,7 @@ def test_main_concurrency_threadpool(tmp_path, capsys):
                 break
         return MagicMock(returncode=0, stdout="", stderr="")
 
-    rc, mock_run = _run_main_with_mocks(
-        "codex", tmp_path, side_effect, "--concurrency", "2"
-    )
+    rc, mock_run = _run_main_with_mocks("codex", tmp_path, side_effect, "--concurrency", "2")
     assert rc == 0
     assert call_count[0] == 4
     # All four should now be done
@@ -833,16 +888,15 @@ def test_main_no_workspaces_returns_1(tmp_path, capsys):
     err = capsys.readouterr().err
     assert "no codex workspaces found" in err
 
+
 # ---------------------------------------------------------------------------
 # Filter flags: --limit, --offset, --only, --puzzle-ids
 # ---------------------------------------------------------------------------
 
+
 def _make_pending_codex(tmp_path: Path, n: int) -> list[Path]:
     """Build N pending codex workspaces, returns the workspace dirs."""
-    return [
-        _make_workspace(tmp_path, f"yugioh_puzzle_f{i:02d}", "codex")
-        for i in range(n)
-    ]
+    return [_make_workspace(tmp_path, f"yugioh_puzzle_f{i:02d}", "codex") for i in range(n)]
 
 
 def _ran_puzzle_ids(mock_run) -> list[str]:
@@ -863,15 +917,13 @@ def _ran_puzzle_ids(mock_run) -> list[str]:
 
 
 def test_limit_caps_processed_count(tmp_path):
-    workspaces = _make_pending_codex(tmp_path, 5)
+    _make_pending_codex(tmp_path, 5)
 
     def side_effect(argv, **kwargs):
         ws = Path(argv[0]).parent
         # Mark this workspace done by writing an outcome event
         pid = ws.name.split("-2026")[0]
-        (ws / "results" / f"{pid}.jsonl").write_text(
-            '{"type":"outcome","winner":0}\n'
-        )
+        (ws / "results" / f"{pid}.jsonl").write_text('{"type":"outcome","winner":0}\n')
         return MagicMock(returncode=0, stdout="", stderr="")
 
     rc, mock_run = _run_main_with_mocks("codex", tmp_path, side_effect, "--limit", "2")
@@ -880,14 +932,12 @@ def test_limit_caps_processed_count(tmp_path):
 
 
 def test_offset_skips_first_n(tmp_path):
-    workspaces = _make_pending_codex(tmp_path, 5)
+    _make_pending_codex(tmp_path, 5)
 
     def side_effect(argv, **kwargs):
         ws = Path(argv[0]).parent
         pid = ws.name.split("-2026")[0]
-        (ws / "results" / f"{pid}.jsonl").write_text(
-            '{"type":"outcome","winner":0}\n'
-        )
+        (ws / "results" / f"{pid}.jsonl").write_text('{"type":"outcome","winner":0}\n')
         return MagicMock(returncode=0, stdout="", stderr="")
 
     rc, mock_run = _run_main_with_mocks("codex", tmp_path, side_effect, "--offset", "3")
@@ -906,9 +956,7 @@ def test_offset_plus_limit(tmp_path):
     def side_effect(argv, **kwargs):
         ws = Path(argv[0]).parent
         pid = ws.name.split("-2026")[0]
-        (ws / "results" / f"{pid}.jsonl").write_text(
-            '{"type":"outcome","winner":0}\n'
-        )
+        (ws / "results" / f"{pid}.jsonl").write_text('{"type":"outcome","winner":0}\n')
         return MagicMock(returncode=0, stdout="", stderr="")
 
     rc, mock_run = _run_main_with_mocks(
@@ -926,9 +974,7 @@ def test_only_single_puzzle_id(tmp_path):
     def side_effect(argv, **kwargs):
         ws = Path(argv[0]).parent
         pid = ws.name.split("-2026")[0]
-        (ws / "results" / f"{pid}.jsonl").write_text(
-            '{"type":"outcome","winner":0}\n'
-        )
+        (ws / "results" / f"{pid}.jsonl").write_text('{"type":"outcome","winner":0}\n')
         return MagicMock(returncode=0, stdout="", stderr="")
 
     rc, mock_run = _run_main_with_mocks(
@@ -945,14 +991,15 @@ def test_puzzle_ids_comma_separated(tmp_path):
     def side_effect(argv, **kwargs):
         ws = Path(argv[0]).parent
         pid = ws.name.split("-2026")[0]
-        (ws / "results" / f"{pid}.jsonl").write_text(
-            '{"type":"outcome","winner":0}\n'
-        )
+        (ws / "results" / f"{pid}.jsonl").write_text('{"type":"outcome","winner":0}\n')
         return MagicMock(returncode=0, stdout="", stderr="")
 
     rc, mock_run = _run_main_with_mocks(
-        "codex", tmp_path, side_effect,
-        "--puzzle-ids", "yugioh_puzzle_f00,yugioh_puzzle_f04",
+        "codex",
+        tmp_path,
+        side_effect,
+        "--puzzle-ids",
+        "yugioh_puzzle_f00,yugioh_puzzle_f04",
     )
     assert rc == 0
     assert mock_run.call_count == 2
@@ -966,16 +1013,21 @@ def test_only_with_offset_and_limit_and_concurrency(tmp_path):
     def side_effect(argv, **kwargs):
         ws = Path(argv[0]).parent
         pid = ws.name.split("-2026")[0]
-        (ws / "results" / f"{pid}.jsonl").write_text(
-            '{"type":"outcome","winner":0}\n'
-        )
+        (ws / "results" / f"{pid}.jsonl").write_text('{"type":"outcome","winner":0}\n')
         return MagicMock(returncode=0, stdout="", stderr="")
 
     rc, mock_run = _run_main_with_mocks(
-        "codex", tmp_path, side_effect,
-        "--puzzle-ids", "yugioh_puzzle_f00,yugioh_puzzle_f02,yugioh_puzzle_f04",
-        "--offset", "1", "--limit", "1",
-        "--concurrency", "2",
+        "codex",
+        tmp_path,
+        side_effect,
+        "--puzzle-ids",
+        "yugioh_puzzle_f00,yugioh_puzzle_f02,yugioh_puzzle_f04",
+        "--offset",
+        "1",
+        "--limit",
+        "1",
+        "--concurrency",
+        "2",
     )
     # 3 ids selected → offset 1 → 2 left → limit 1 → 1 processed
     assert rc == 0
@@ -990,9 +1042,6 @@ def test_limit_zero_is_a_noop(tmp_path):
     def side_effect(argv, **kwargs):
         raise AssertionError("limit=0 should run nothing")
 
-    rc, mock_run = _run_main_with_mocks(
-        "codex", tmp_path, side_effect, "--limit", "0"
-    )
+    rc, mock_run = _run_main_with_mocks("codex", tmp_path, side_effect, "--limit", "0")
     assert rc == 0
     assert mock_run.call_count == 0
-

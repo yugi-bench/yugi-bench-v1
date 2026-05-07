@@ -3,23 +3,20 @@
 # Self-contained yugi-bench environment image — for host installs
 # (any machine with just Docker installed; no host build tooling needed).
 #
-# Builds libocgcore.so + clones BabelCDB + CardScripts inside the build,
-# so the host doesn't need premake5, g++, git submodules, or any other
-# build tooling. Only Docker Desktop required.
+# Builds libocgcore.so + clones BabelCDB + CardScripts + Puzzles inside
+# the build, then materialises the lean data/yugioh_bench.jsonl in a
+# Python stage so the runtime image is self-contained: nothing needs to
+# be pre-staged on the host. Only Docker Desktop required.
 #
 # Build:
 #   docker build -f agent-mcp-eval/Dockerfile \
 #       -t yugi-bench-env:latest .
 #
-# Outputs the same image as agent-mcp-eval/Dockerfile (also named
-# yugi-bench-env:latest), but with the engine binaries built end-to-end
-# from upstream pinned SHAs rather than pre-staged from a local vendor/.
-#
-# Pinned upstream commits match setup.sh as of 2026-05-03. To update,
-# bump the ARGs below intentionally — replay-result reproducibility
-# depends on stable engine + script + DB pins.
+# Pinned upstream commits match setup.sh.  To update, bump the ARGs
+# below intentionally — replay-result reproducibility depends on stable
+# engine + script + DB + puzzles pins.
 
-# ---------- Stage 1: builder ----------
+# ---------- Stage 1: builder (engine + assets) ----------
 FROM debian:13-slim AS builder
 
 # Note: premake5 is NOT in Debian's package archives (as of Debian 13).
@@ -42,6 +39,8 @@ ARG BABEL_REPO=https://github.com/ProjectIgnis/BabelCDB.git
 ARG BABEL_REF=554dc41016dd02a74848df5fe54bda3567c86e78
 ARG SCRIPTS_REPO=https://github.com/ProjectIgnis/CardScripts.git
 ARG SCRIPTS_REF=2d9697a56387c1b3dabd4780eea5aaf0bcbc39af
+ARG PUZZLES_REPO=https://github.com/ProjectIgnis/Puzzles.git
+ARG PUZZLES_REF=1177a180dd237da7f9703c846d533c2116ca1439
 # ocgcore's field.cpp compile peaks at 2-4 GB RAM per job. Default to 2
 # parallel jobs — fits comfortably in a 4 GB VM (Podman Machine's
 # default is 2 GB which is too small even single-job). Override with
@@ -93,7 +92,42 @@ RUN git -c core.filemode=false init scripts \
  && git fetch --depth 1 origin "$SCRIPTS_REF" \
  && git checkout FETCH_HEAD
 
-# ---------- Stage 2: runtime ----------
+# 5. Puzzles bundle — upstream Lua initial-state scripts that
+#    build_benchmark.py walks to produce data/yugioh_bench.jsonl.
+RUN git -c core.filemode=false init puzzles \
+ && cd puzzles \
+ && git remote add origin "$PUZZLES_REPO" \
+ && git fetch --depth 1 origin "$PUZZLES_REF" \
+ && git checkout FETCH_HEAD
+
+# ---------- Stage 2: dataset-builder (Python; produces lean JSONL) ----------
+FROM python:3.11-slim AS dataset-builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Lay out vendor/ in the same shape engine.core's _first_existing()
+# search expects, so build_benchmark.py runs unmodified.
+WORKDIR /work
+COPY --from=builder /build/ygopro-core/bin/release/libocgcore.so \
+                    /work/vendor/ygopro-core/bin/release/libocgcore.so
+COPY --from=builder /build/babel/cards.cdb \
+                    /work/vendor/distribution/expansions/cards.cdb
+COPY --from=builder /build/scripts/ /work/vendor/distribution/script/
+COPY --from=builder /build/puzzles/ /work/vendor/puzzles/
+
+# Pull in the dataset-author code from the build context.
+COPY src/ /work/src/
+
+ENV PYTHONPATH=/work/src
+RUN python /work/src/dataset/build_benchmark.py \
+        --output /work/data/yugioh_bench.jsonl \
+        --lean \
+        --no-example \
+ && python /work/src/dataset/build_verified_subset.py
+
+# ---------- Stage 3: runtime ----------
 FROM python:3.11-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
@@ -115,17 +149,19 @@ ENV PYTHONPATH=/app/src
 
 # Pull built engine + assets from the builder stage. The on-disk layout
 # matches what engine.core's _first_existing() default-path search
-# expects, so no env-var configuration is needed at runtime.
+# expects (REPO_ROOT/vendor/...), so no env-var configuration is needed
+# at runtime.
 COPY --from=builder /build/ygopro-core/bin/release/libocgcore.so \
-                    /app/src/vendor/ygopro-core/bin/release/libocgcore.so
+                    /app/vendor/ygopro-core/bin/release/libocgcore.so
 COPY --from=builder /build/babel/cards.cdb \
-                    /app/src/vendor/distribution/expansions/cards.cdb
-COPY --from=builder /build/scripts/ /app/src/vendor/distribution/script/
+                    /app/vendor/distribution/expansions/cards.cdb
+COPY --from=builder /build/scripts/ /app/vendor/distribution/script/
 
-# Benchmark code + dataset (NOT providers/ — agent lives outside).
+# Benchmark code + dataset built in the dataset-builder stage (NOT
+# providers/ — agent lives outside).
 COPY src/engine/    /app/src/engine/
 COPY src/lib/       /app/src/lib/
-COPY data/           /app/data/
+COPY --from=dataset-builder /work/data/ /app/data/
 COPY agent-mcp-eval/server.py /app/agent-mcp-eval/server.py
 COPY tests/          /app/tests/
 

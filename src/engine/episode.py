@@ -20,20 +20,21 @@ The Episode loop never interprets the game itself.  It:
 Logs every exchange (model turn, tool call, tool result, state snapshot)
 to an append-only JSONL for replay / scoring.
 """
+
 from __future__ import annotations
 
 import json
-import os
-import re
-import shutil
-import subprocess
 import time
 import traceback
-import uuid
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from providers import (
+    ModelTurn,
+    ToolCall,
+    ToolCallingProvider,
+)
 
 from .core import CardDB, OCGEngine
 from .harness import (
@@ -43,25 +44,13 @@ from .harness import (
     PendingDecision,
     StepResult,
 )
-from providers import (
-    AnthropicToolProvider,
-    ClaudeCLIToolProvider,
-    DeepSeekToolProvider,
-    ModelTurn,
-    OpenAIToolProvider,
-    ToolCall,
-    ToolCallingProvider,
-    VLLMToolProvider,
-)
 from .state import build_state
 from .tools import (
     INSPECTION_TOOL_NAMES,
     META_TOOL_NAMES,
-    RESPONSE_TOOLS,
     TOOL_TO_HARNESS_METHOD,
     TOOLS,
     coerce_args,
-    normalize_place_arg,
 )
 
 
@@ -119,6 +108,7 @@ class Episode:
                 ALWAYS_AVAILABLE_INSPECTION,
                 FORAGE_ONLY_INSPECTION,
             )
+
             allowed: list[str] = (
                 list(META_TOOL_NAMES)
                 + list(TOOL_TO_HARNESS_METHOD.keys())
@@ -179,31 +169,33 @@ class Episode:
             # left _pending=None even after the harness restored it for
             # successful cases). Try one more advance() to see if a new
             # decision surfaces or the duel is actually over.
-            if (self.harness.pending is None
-                    and not self.harness.state.game_over):
+            if self.harness.pending is None and not self.harness.state.game_over:
                 try:
                     recovery_step = self.harness.advance()
-                    self._log({
-                        "type": "harness_recovery_advance",
-                        "events": recovery_step.events[-10:],
-                        "new_pending": _pending_summary(recovery_step.pending),
-                        "game_over": recovery_step.game_over,
-                    })
+                    self._log(
+                        {
+                            "type": "harness_recovery_advance",
+                            "events": recovery_step.events[-10:],
+                            "new_pending": _pending_summary(recovery_step.pending),
+                            "game_over": recovery_step.game_over,
+                        }
+                    )
                     if recovery_step.game_over or self.harness.state.game_over:
                         return self._outcome("game_over", recovery_step)
                     if recovery_step.pending is not None:
                         prior = recovery_step
                 except Exception as _e:  # noqa: BLE001
-                    self._log({
-                        "type": "harness_recovery_advance_error",
-                        "error": f"{type(_e).__name__}: {_e}",
-                    })
+                    self._log(
+                        {
+                            "type": "harness_recovery_advance_error",
+                            "error": f"{type(_e).__name__}: {_e}",
+                        }
+                    )
 
             if self.harness.pending is None:
                 return self._outcome(
                     "no_pending_decision_unexpected",
-                    StepResult(events=[], pending=None,
-                               game_over=self.harness.state.game_over),
+                    StepResult(events=[], pending=None, game_over=self.harness.state.game_over),
                 )
             if self.harness.state.game_over:
                 return self._outcome("game_over", prior)
@@ -225,29 +217,34 @@ class Episode:
             # opaque — Episode preserves it verbatim so the provider can
             # round-trip its own state on the next call (e.g. Anthropic
             # carries thinking-blocks-with-signatures here).
-            self._messages.append({
-                "role": "assistant",
-                "text": turn.text,
-                "tool_calls": [
-                    {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
-                    for tc in turn.tool_calls
-                ],
-                "provider_data": dict(turn.provider_data),
-            })
+            self._messages.append(
+                {
+                    "role": "assistant",
+                    "text": turn.text,
+                    "tool_calls": [
+                        {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+                        for tc in turn.tool_calls
+                    ],
+                    "provider_data": dict(turn.provider_data),
+                }
+            )
             self._accumulate_usage(turn.usage, turn.wallclock_seconds)
-            self._log({
-                "type": "model_turn",
-                "text": turn.text,
-                "tool_calls": [{"id": tc.id, "name": tc.name,
-                                "arguments": tc.arguments}
-                               for tc in turn.tool_calls],
-                "stop_reason": turn.stop_reason,
-                "provider_data": dict(turn.provider_data),
-                "usage": turn.usage,
-                "elapsed_seconds": round(turn.wallclock_seconds, 3),
-                "cumulative": dict(self._usage_totals),
-                "response_headers": turn.response_headers,
-            })
+            self._log(
+                {
+                    "type": "model_turn",
+                    "text": turn.text,
+                    "tool_calls": [
+                        {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+                        for tc in turn.tool_calls
+                    ],
+                    "stop_reason": turn.stop_reason,
+                    "provider_data": dict(turn.provider_data),
+                    "usage": turn.usage,
+                    "elapsed_seconds": round(turn.wallclock_seconds, 3),
+                    "cumulative": dict(self._usage_totals),
+                    "response_headers": turn.response_headers,
+                }
+            )
 
             if not turn.tool_calls:
                 return self._outcome("model_stopped_without_tool_call", prior)
@@ -272,42 +269,57 @@ class Episode:
                         "so the engine state likely diverged from your predicted "
                         "sequence. Re-evaluate from the next observation."
                     )
-                    self._messages.append({
-                        "role": "tool", "tool_call_id": tc.id,
-                        "content": skip_msg, "is_error": True,
-                    })
-                    self._log({
-                        "type": "tool_result",
-                        "tool_use_id": tc.id,
-                        "name": tc.name,
-                        "arguments": tc.arguments,
-                        "content": skip_msg,
-                        "is_error": True,
-                        "skipped_after_batch_error": True,
-                    })
+                    self._messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "content": skip_msg,
+                            "is_error": True,
+                        }
+                    )
+                    self._log(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tc.id,
+                            "name": tc.name,
+                            "arguments": tc.arguments,
+                            "content": skip_msg,
+                            "is_error": True,
+                            "skipped_after_batch_error": True,
+                        }
+                    )
                     continue
                 if self._tool_calls_used >= self.max_tool_calls:
-                    self._messages.append({
-                        "role": "tool", "tool_call_id": tc.id,
-                        "content": "Tool budget exhausted.", "is_error": True,
-                    })
+                    self._messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "content": "Tool budget exhausted.",
+                            "is_error": True,
+                        }
+                    )
                     continue
                 self._tool_calls_used += 1
 
                 result = self._dispatch(tc)
-                self._messages.append({
-                    "role": "tool", "tool_call_id": tc.id,
-                    "content": result["content"],
-                    "is_error": result.get("is_error", False),
-                })
-                self._log({
-                    "type": "tool_result",
-                    "tool_use_id": tc.id,
-                    "name": tc.name,
-                    "arguments": tc.arguments,
-                    "content": result["content"],
-                    "is_error": result.get("is_error", False),
-                })
+                self._messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": result["content"],
+                        "is_error": result.get("is_error", False),
+                    }
+                )
+                self._log(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tc.id,
+                        "name": tc.name,
+                        "arguments": tc.arguments,
+                        "content": result["content"],
+                        "is_error": result.get("is_error", False),
+                    }
+                )
                 # Snapshot the engine state AFTER this action so the log is
                 # self-contained for forensic replay — no need to read the
                 # next observation entry to know what the action did.
@@ -316,25 +328,30 @@ class Episode:
                 try:
                     if self.harness._started and self.engine.duel:
                         snap = build_state(
-                            self.harness, self.engine.card_db,
+                            self.harness,
+                            self.engine.card_db,
                             perspective=self.perspective,
                             include_decision=True,
                         )
-                        self._log({
-                            "type": "state_snapshot",
-                            "after_tool": tc.name,
-                            "after_tool_use_id": tc.id,
-                            "is_error": result.get("is_error", False),
-                            "state": snap,
-                        })
+                        self._log(
+                            {
+                                "type": "state_snapshot",
+                                "after_tool": tc.name,
+                                "after_tool_use_id": tc.id,
+                                "is_error": result.get("is_error", False),
+                                "state": snap,
+                            }
+                        )
                 except Exception as _e:  # noqa: BLE001
                     # Don't let a state-build failure abort the run — record
                     # the error and continue.
-                    self._log({
-                        "type": "state_snapshot",
-                        "after_tool": tc.name,
-                        "error": f"{type(_e).__name__}: {_e}",
-                    })
+                    self._log(
+                        {
+                            "type": "state_snapshot",
+                            "after_tool": tc.name,
+                            "error": f"{type(_e).__name__}: {_e}",
+                        }
+                    )
 
                 if result.get("step") is not None:
                     step_for_next_observation = result["step"]
@@ -350,12 +367,12 @@ class Episode:
                 # come back to the model.
                 if batched:
                     auto_step = self._auto_decline_chains_until_real(
-                        turn.tool_calls, idx,
+                        turn.tool_calls,
+                        idx,
                     )
                     if auto_step is not None:
                         step_for_next_observation = auto_step
-                        if (auto_step.game_over
-                                or self.harness.state.game_over):
+                        if auto_step.game_over or self.harness.state.game_over:
                             return self._outcome("game_over", auto_step)
 
                 # If this tool_call errored AND we are in a batched response,
@@ -367,7 +384,8 @@ class Episode:
                 prior = step_for_next_observation
             else:
                 prior = StepResult(
-                    events=[], pending=self.harness.pending,
+                    events=[],
+                    pending=self.harness.pending,
                     game_over=self.harness.state.game_over,
                     winner=self.harness.state.winner,
                 )
@@ -381,6 +399,7 @@ class Episode:
         # system prompt from the universal lib builder (depends on the
         # live engine state for omniscient/visible state rendering).
         from lib.prompt_builder import build_interactive_system_prompt
+
         self.system_prompt = build_interactive_system_prompt(
             instance=self.instance,
             card_db=self.card_db,
@@ -397,20 +416,25 @@ class Episode:
         try:
             provider_cfg = self.provider.provider_config_for_log()
         except Exception:  # noqa: BLE001
-            provider_cfg = {"name": getattr(self.provider, "name", "?"),
-                            "model": getattr(self.provider, "model", "?")}
-        self._log({
-            "type": "config",
-            "perspective": self.perspective,
-            "max_tool_calls": self.max_tool_calls,
-            "forage": self.forage,
-            "show_solution": self.show_solution,
-            "system_prompt": self.system_prompt,
-            "tools": list(self.tools),
-            "provider": provider_cfg,
-        })
-        self._log({"type": "start", "events": step.events,
-                   "pending": _pending_summary(step.pending)})
+            provider_cfg = {
+                "name": getattr(self.provider, "name", "?"),
+                "model": getattr(self.provider, "model", "?"),
+            }
+        self._log(
+            {
+                "type": "config",
+                "perspective": self.perspective,
+                "max_tool_calls": self.max_tool_calls,
+                "forage": self.forage,
+                "show_solution": self.show_solution,
+                "system_prompt": self.system_prompt,
+                "tools": list(self.tools),
+                "provider": provider_cfg,
+            }
+        )
+        self._log(
+            {"type": "start", "events": step.events, "pending": _pending_summary(step.pending)}
+        )
         return step
 
     def _resume(self, jsonl_path: Path) -> StepResult:
@@ -452,7 +476,7 @@ class Episode:
 
         # Re-init the engine on the original puzzle.  We don't log this
         # — the JSONL already has the original 'start' record.
-        first = self.harness.start(self.lua_setup)
+        self.harness.start(self.lua_setup)
 
         # Pre-pass: older JSONL writers strip tool_call ids from
         # model_turn records but DO preserve tool_use_id on tool_result
@@ -492,8 +516,7 @@ class Episode:
                 # Already handled by self.harness.start above.
                 continue
             if t == "observation":
-                self._messages.append({"role": "user",
-                                       "content": rec.get("content", "")})
+                self._messages.append({"role": "user", "content": rec.get("content", "")})
             elif t == "model_turn":
                 # Build the assistant message's tool_calls list with
                 # ids guaranteed and matching the upcoming tool_result
@@ -507,17 +530,21 @@ class Episode:
                     if not tcid:
                         tcid = f"resume_call_{synthetic_id_counter}"
                         synthetic_id_counter += 1
-                    tcs_out.append({
-                        "id": tcid,
-                        "name": tc.get("name"),
-                        "arguments": tc.get("arguments") or {},
-                    })
-                self._messages.append({
-                    "role": "assistant",
-                    "text": rec.get("text", ""),
-                    "tool_calls": tcs_out,
-                    "provider_data": dict(rec.get("provider_data") or {}),
-                })
+                    tcs_out.append(
+                        {
+                            "id": tcid,
+                            "name": tc.get("name"),
+                            "arguments": tc.get("arguments") or {},
+                        }
+                    )
+                self._messages.append(
+                    {
+                        "role": "assistant",
+                        "text": rec.get("text", ""),
+                        "tool_calls": tcs_out,
+                        "provider_data": dict(rec.get("provider_data") or {}),
+                    }
+                )
                 if rec.get("usage"):
                     self._accumulate_usage(
                         rec["usage"],
@@ -553,12 +580,14 @@ class Episode:
                 # tool_use_id is preserved by the runner's _log call;
                 # the assistant tool_call ids were back-filled from
                 # these in the pre-pass above so they match.
-                self._messages.append({
-                    "role": "tool",
-                    "tool_call_id": rec.get("tool_use_id") or "",
-                    "content": rec.get("content", ""),
-                    "is_error": rec.get("is_error", False),
-                })
+                self._messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": rec.get("tool_use_id") or "",
+                        "content": rec.get("content", ""),
+                        "is_error": rec.get("is_error", False),
+                    }
+                )
             elif t == "auto_chain_decline":
                 try:
                     self.harness.respond_select_chain(index=None)
@@ -578,22 +607,23 @@ class Episode:
         # If the JSONL ended on a user observation that was never
         # answered (typical API-exhaustion case), the obs is already in
         # _messages; tell the loop to skip generating a duplicate.
-        if (self._messages
-                and self._messages[-1].get("role") == "user"):
+        if self._messages and self._messages[-1].get("role") == "user":
             self._resume_skip_first_obs = True
 
         # Mark the resume in the log so a future reader can see where
         # the new tail starts.
-        self._log({
-            "type": "resume",
-            "from_jsonl": str(jsonl_path),
-            "records_replayed": len(records),
-            "tool_calls_used": self._tool_calls_used,
-            "messages": len(self._messages),
-            "replayed_calls": replayed_calls,
-            "replayed_auto_declines": replayed_auto_declines,
-            "skip_first_obs": self._resume_skip_first_obs,
-        })
+        self._log(
+            {
+                "type": "resume",
+                "from_jsonl": str(jsonl_path),
+                "records_replayed": len(records),
+                "tool_calls_used": self._tool_calls_used,
+                "messages": len(self._messages),
+                "replayed_calls": replayed_calls,
+                "replayed_auto_declines": replayed_auto_declines,
+                "skip_first_obs": self._resume_skip_first_obs,
+            }
+        )
 
         # Return current state as if we just took the last engine step.
         # The Episode loop will see the harness.pending below and emit
@@ -608,8 +638,11 @@ class Episode:
 
     def _observation_user_message(self, events: list[dict]) -> str:
         state = build_state(
-            self.harness, self.engine.card_db,
-            perspective=self.perspective, include_decision=True, events=events,
+            self.harness,
+            self.engine.card_db,
+            perspective=self.perspective,
+            include_decision=True,
+            events=events,
         )
         return json.dumps(state, default=str, indent=2)
 
@@ -635,11 +668,13 @@ class Episode:
     def _dispatch_inspection(self, tc: ToolCall) -> dict[str, Any]:
         if tc.name == "get_state":
             p = tc.arguments.get("perspective", self.perspective)
-            state = build_state(self.harness, self.engine.card_db,
-                                perspective=int(p), include_decision=True)
+            state = build_state(
+                self.harness, self.engine.card_db, perspective=int(p), include_decision=True
+            )
             return _ok(json.dumps(state, default=str))
         if tc.name == "pending_decision":
             from .state import build_decision
+
             pending = self.harness.pending
             if pending is None:
                 return _ok(json.dumps({"pending": None}))
@@ -648,11 +683,14 @@ class Episode:
         if tc.name == "inspect_card":
             code = int(tc.arguments["card_code"])
             info = self.engine.card_db.get(code) or {
-                "code": code, "name": "unknown", "note": "not in CardDB",
+                "code": code,
+                "name": "unknown",
+                "note": "not in CardDB",
             }
             return _ok(json.dumps(info, default=str))
         if tc.name == "get_glossary":
             from .core import glossary
+
             return _ok(json.dumps(glossary(), default=str))
         return _err(f"inspection tool {tc.name!r} not implemented")
 
@@ -666,8 +704,10 @@ class Episode:
                 "tool_calls_used": self._tool_calls_used,
                 "tool_calls_remaining": self.max_tool_calls - self._tool_calls_used,
                 "events": step.events,
-                "note": ("Engine state reset to puzzle initial conditions. "
-                         "The next observation reflects fresh state."),
+                "note": (
+                    "Engine state reset to puzzle initial conditions. "
+                    "The next observation reflects fresh state."
+                ),
             }
             return {
                 "content": json.dumps(payload, default=str),
@@ -676,7 +716,9 @@ class Episode:
         return _err(f"meta tool {tc.name!r} not implemented")
 
     def _auto_decline_chains_until_real(
-        self, all_tool_calls: list[ToolCall], current_idx: int,
+        self,
+        all_tool_calls: list[ToolCall],
+        current_idx: int,
     ) -> StepResult | None:
         """Auto-decline optional chain windows between batched actions.
 
@@ -697,8 +739,7 @@ class Episode:
         chain (or ``None`` if no auto-decline fired).
         """
         next_idx = current_idx + 1
-        next_tc = (all_tool_calls[next_idx]
-                   if next_idx < len(all_tool_calls) else None)
+        next_tc = all_tool_calls[next_idx] if next_idx < len(all_tool_calls) else None
         last_step: StepResult | None = None
         while True:
             pending = self.harness.pending
@@ -714,18 +755,22 @@ class Episode:
             try:
                 step = self.harness.respond_select_chain(index=None)
             except Exception as e:  # noqa: BLE001
-                self._log({
-                    "type": "auto_chain_decline_error",
-                    "error": f"{type(e).__name__}: {e}",
-                })
+                self._log(
+                    {
+                        "type": "auto_chain_decline_error",
+                        "error": f"{type(e).__name__}: {e}",
+                    }
+                )
                 break
-            self._log({
-                "type": "auto_chain_decline",
-                "after_tool_use_id": all_tool_calls[current_idx].id,
-                "events": step.events[-10:],
-                "new_pending": _pending_summary(step.pending),
-                "game_over": step.game_over,
-            })
+            self._log(
+                {
+                    "type": "auto_chain_decline",
+                    "after_tool_use_id": all_tool_calls[current_idx].id,
+                    "events": step.events[-10:],
+                    "new_pending": _pending_summary(step.pending),
+                    "game_over": step.game_over,
+                }
+            )
             last_step = step
             if step.game_over or self.harness.state.game_over:
                 return step
@@ -759,23 +804,22 @@ class Episode:
                     tools=self.tools,
                 )
             except Exception as e:  # noqa: BLE001
-                self._log({"type": "provider_error",
-                           "attempt": attempt + 1, "error": str(e)})
+                self._log({"type": "provider_error", "attempt": attempt + 1, "error": str(e)})
                 if attempt == 2:
                     raise
-                time.sleep(2 ** attempt)
+                time.sleep(2**attempt)
         raise RuntimeError("unreachable")
 
     # ------------------------------------------------------------------
     def _outcome(self, termination: str, last_step: StepResult) -> dict[str, Any]:
         from .core import render_win_reason
+
         raw_reason = self.harness.state.win_reason
         out = {
             "termination": termination,
             "game_over": self.harness.state.game_over,
             "winner": self.harness.state.winner,
-            "win_reason": (render_win_reason(raw_reason)
-                           if raw_reason is not None else None),
+            "win_reason": (render_win_reason(raw_reason) if raw_reason is not None else None),
             "win_reason_raw": raw_reason,
             "turn_count": self.harness.state.turn_count,
             "lp": list(self.harness.state.lp),
@@ -830,9 +874,14 @@ def run_episode(
     log_path: Path | None = None,
 ) -> dict[str, Any]:
     return Episode(
-        engine=engine, provider=provider, lua_setup=lua_setup,
-        instance=instance, card_db=card_db,
-        perspective=perspective, max_tool_calls=max_tool_calls,
-        forage=forage, show_solution=show_solution,
+        engine=engine,
+        provider=provider,
+        lua_setup=lua_setup,
+        instance=instance,
+        card_db=card_db,
+        perspective=perspective,
+        max_tool_calls=max_tool_calls,
+        forage=forage,
+        show_solution=show_solution,
         log_path=log_path,
     ).run()

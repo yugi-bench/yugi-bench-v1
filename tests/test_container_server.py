@@ -20,20 +20,19 @@ This runs in-process; ``docker`` is NOT required. The build smoke
 (``docker build`` + ``docker run -i ...``) needs a host with docker
 and is verified separately.
 """
+
 from __future__ import annotations
-
-import json
-import os
-from collections import Counter
-from pathlib import Path
-
-import pytest
 
 # Load agent-mcp-eval/server.py directly — the directory has a hyphen so
 # it isn't importable as a package; tests/conftest.py only puts src/ on path.
 import importlib.util as _ilu
+import json
 import sys as _sys
+from collections import Counter
+from pathlib import Path
 from pathlib import Path as _Path
+
+import pytest
 
 _AME = _Path(__file__).resolve().parent.parent / "agent-mcp-eval"
 _spec = _ilu.spec_from_file_location("agent_mcp_eval_server", _AME / "server.py")
@@ -55,8 +54,8 @@ def _engine_assets_present() -> bool:
     """
     try:
         from engine.core import CARD_SCRIPT_DIR, DB_DIR, DYLIB_PATH, SCRIPT_DIR
-        return all(Path(p).exists() for p in
-                   (DYLIB_PATH, DB_DIR, SCRIPT_DIR, CARD_SCRIPT_DIR))
+
+        return all(Path(p).exists() for p in (DYLIB_PATH, DB_DIR, SCRIPT_DIR, CARD_SCRIPT_DIR))
     except Exception:
         return False
 
@@ -64,8 +63,8 @@ def _engine_assets_present() -> bool:
 pytestmark = pytest.mark.skipif(
     not _engine_assets_present(),
     reason="libocgcore + card DB + scripts not installed (run setup.sh, "
-           "or use the container image, or set YGO_DYLIB / YGO_DB_DIR / "
-           "YGO_SCRIPT_DIR env vars)",
+    "or use the container image, or set YGO_DYLIB / YGO_DB_DIR / "
+    "YGO_SCRIPT_DIR env vars)",
 )
 
 
@@ -176,23 +175,38 @@ def test_winning_solution_reaches_game_over(tmp_path: Path) -> None:
 
     # Schema parity vs. the API-driven sweep.
     expected_keys = {
-        "config": {"type", "perspective", "max_tool_calls", "forage",
-                   "show_solution", "system_prompt", "tools", "provider"},
+        "config": {
+            "type",
+            "perspective",
+            "max_tool_calls",
+            "forage",
+            "show_solution",
+            "system_prompt",
+            "tools",
+            "provider",
+        },
         "start": {"type", "events", "pending"},
-        "model_turn": {"type", "text", "tool_calls", "stop_reason",
-                       "provider_data", "usage", "elapsed_seconds",
-                       "cumulative", "response_headers"},
-        "tool_result": {"type", "tool_use_id", "name", "arguments",
-                        "content", "is_error"},
-        "state_snapshot": {"type", "after_tool", "after_tool_use_id",
-                           "is_error", "state"},
+        "model_turn": {
+            "type",
+            "text",
+            "tool_calls",
+            "stop_reason",
+            "provider_data",
+            "usage",
+            "elapsed_seconds",
+            "cumulative",
+            "response_headers",
+        },
+        "tool_result": {"type", "tool_use_id", "name", "arguments", "content", "is_error"},
+        "state_snapshot": {"type", "after_tool", "after_tool_use_id", "is_error", "state"},
         "observation": {"type", "content"},
     }
     for ev in events:
         if ev["type"] not in expected_keys:
             continue
-        assert expected_keys[ev["type"]].issubset(set(ev.keys())), \
+        assert expected_keys[ev["type"]].issubset(set(ev.keys())), (
             f"event {ev['type']} missing keys: {expected_keys[ev['type']] - set(ev.keys())}"
+        )
 
 
 def test_unknown_tool_returns_error_without_advancing(tmp_path: Path) -> None:
@@ -200,8 +214,7 @@ def test_unknown_tool_returns_error_without_advancing(tmp_path: Path) -> None:
     try:
         S._handle_tool_call(state, "get_briefing", {})
         out = json.loads(S._handle_tool_call(state, "this_tool_does_not_exist", {}))
-        assert out.get("is_error", out.get("ok", True) is False) or \
-               "unknown tool" in str(out)
+        assert out.get("is_error", out.get("ok", True) is False) or "unknown tool" in str(out)
     finally:
         _teardown(state)
 

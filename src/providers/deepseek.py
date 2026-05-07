@@ -73,14 +73,16 @@ def _to_deepseek_messages(
             msg["content"] = text
             tcs = []
             for tc in m.get("tool_calls", []) or []:
-                tcs.append({
-                    "id": tc["id"],
-                    "type": "function",
-                    "function": {
-                        "name": tc["name"],
-                        "arguments": json.dumps(tc.get("arguments", {})),
-                    },
-                })
+                tcs.append(
+                    {
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {
+                            "name": tc["name"],
+                            "arguments": json.dumps(tc.get("arguments", {})),
+                        },
+                    }
+                )
             if tcs:
                 msg["tool_calls"] = tcs
             # Carry reasoning_content forward — required by DeepSeek
@@ -92,11 +94,13 @@ def _to_deepseek_messages(
             out.append(msg)
             continue
         if role == "tool":
-            out.append({
-                "role": "tool",
-                "tool_call_id": m["tool_call_id"],
-                "content": m["content"],
-            })
+            out.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": m["tool_call_id"],
+                    "content": m["content"],
+                }
+            )
             continue
     return out
 
@@ -106,9 +110,14 @@ def _extract_usage(usage_obj: Any) -> dict[str, Any]:
     if usage_obj is None:
         return {}
     out: dict[str, Any] = {}
-    for attr in ("prompt_tokens", "completion_tokens", "total_tokens",
-                 "prompt_cache_hit_tokens", "prompt_cache_miss_tokens",
-                 "reasoning_tokens"):
+    for attr in (
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "prompt_cache_hit_tokens",
+        "prompt_cache_miss_tokens",
+        "reasoning_tokens",
+    ):
         v = getattr(usage_obj, attr, None)
         if v is not None:
             out[attr] = v
@@ -156,22 +165,23 @@ class DeepSeekToolProvider(OpenAIToolProvider):
         thinking_enabled: bool = True,
     ):
         import os
+
         # Try DEEPSEEK_API_KEY first, fall back to OPENAI_API_KEY for
         # callers who pass via --api-key directly.
         key = api_key or os.environ.get("DEEPSEEK_API_KEY")
         if not key:
-            raise RuntimeError(
-                "DEEPSEEK_API_KEY not set; pass api_key=... or set the env var."
-            )
+            raise RuntimeError("DEEPSEEK_API_KEY not set; pass api_key=... or set the env var.")
         # Use OpenAIToolProvider's __init__ for the SDK plumbing.  It
         # opens the openai.OpenAI client with our base_url + key.
         super().__init__(
-            model=model, api_key=key, base_url=base_url,
-            max_tokens=max_tokens, temperature=temperature,
+            model=model,
+            api_key=key,
+            base_url=base_url,
+            max_tokens=max_tokens,
+            temperature=temperature,
         )
         self.reasoning_effort = (
-            reasoning_effort if reasoning_effort and reasoning_effort.lower() != "off"
-            else None
+            reasoning_effort if reasoning_effort and reasoning_effort.lower() != "off" else None
         )
         self.thinking_enabled = thinking_enabled
 
@@ -220,18 +230,21 @@ class DeepSeekToolProvider(OpenAIToolProvider):
         # attribute (pydantic model_dump exposes it; getattr is safe).
         reasoning_content = getattr(msg, "reasoning_content", None) or ""
         tool_calls: list[ToolCall] = []
-        for tc in (msg.tool_calls or []):
+        for tc in msg.tool_calls or []:
             try:
                 args = json.loads(tc.function.arguments or "{}")
             except json.JSONDecodeError:
                 args = {}
-            tool_calls.append(ToolCall(
-                id=tc.id,
-                name=tc.function.name,
-                arguments=args if isinstance(args, dict) else {},
-            ))
+            tool_calls.append(
+                ToolCall(
+                    id=tc.id,
+                    name=tc.function.name,
+                    arguments=args if isinstance(args, dict) else {},
+                )
+            )
 
         from .openai import _safe_model_dump
+
         return ModelTurn(
             text=text,
             tool_calls=tool_calls,

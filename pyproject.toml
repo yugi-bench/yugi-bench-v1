@@ -75,3 +75,15 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
 ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Entry-point scripts bootstrap sys.path before doing internal imports
+# (canonical src-layout pattern).  E402 is intentional in those files.
+"api-eval/*.py" = ["E402", "E701"]
+"agent-mcp-eval/aggregate-results.py" = ["E402"]
+"agent-mcp-eval/_lib/*.py" = ["E402"]
+"src/dataset/*.py" = ["E402", "E741"]
+"src/engine/replay.py" = ["E402"]
+"src/engine/multi_attempt.py" = ["E402"]
+"src/providers/claude_cli.py" = ["E701", "E702"]
+"tests/test_single_attempt_evaluator.py" = ["E402"]

@@ -21,6 +21,9 @@ docstring.  The existing files (``anthropic.py``, ``openai.py``,
 ``deepseek.py``, ``claude_cli.py``) are reference implementations.
 """
 
+# Provider implementations — each is self-contained and importable
+# without forcing its SDK dependency until __init__ runs.
+from .anthropic import AnthropicToolProvider
 from .base import (
     Message,
     ModelTurn,
@@ -28,14 +31,9 @@ from .base import (
     ToolCallingProvider,
     ToolSchema,
 )
-
-# Provider implementations — each is self-contained and importable
-# without forcing its SDK dependency until __init__ runs.
-from .anthropic import AnthropicToolProvider
 from .claude_cli import ClaudeCLIToolProvider
 from .deepseek import DeepSeekToolProvider
 from .openai import OpenAIToolProvider, VLLMToolProvider
-
 
 __all__ = [
     # LCD types
@@ -103,7 +101,6 @@ def get_provider(name: str, model: str, **kwargs):
             kwargs["reasoning_effort"] = eff
         return DeepSeekToolProvider(model=model, **kwargs)
     if name in ("claude-cli", "claude_cli"):
-        kwargs = {k: v for k, v in kwargs.items()
-                  if k not in ("api_key", "base_url")}
+        kwargs = {k: v for k, v in kwargs.items() if k not in ("api_key", "base_url")}
         return ClaudeCLIToolProvider(model=model, **kwargs)
     raise ValueError(f"unknown provider: {name!r}")

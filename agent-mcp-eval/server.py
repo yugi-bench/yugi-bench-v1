@@ -65,6 +65,7 @@ contains the full post-action state plus a ``"game_over": true,
 cleanly so the docker container terminates and the driver can collect.
 Subsequent tool calls (if the agent doesn't disconnect) return an error.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -90,7 +91,8 @@ if str(_REPO_ROOT) not in sys.path:
 
 from engine.core import CardDB, OCGEngine, glossary  # noqa: E402
 from engine.harness import Harness  # noqa: E402
-from engine.state import build_state, build_decision  # noqa: E402
+from engine.replay import _auto_advance_opponent  # noqa: E402, WPS437
+from engine.state import build_decision, build_state  # noqa: E402
 from engine.tools import (  # noqa: E402
     ALWAYS_AVAILABLE_INSPECTION,
     META_TOOL_NAMES,
@@ -98,8 +100,6 @@ from engine.tools import (  # noqa: E402
     TOOLS,
     coerce_args,
 )
-from engine.replay import _auto_advance_opponent  # noqa: E402, WPS437
-
 
 # ---------------------------------------------------------------------------
 # Configuration + state
@@ -129,6 +129,7 @@ class ServerConfig:
 @dataclass
 class ServerState:
     """Mutable state carried across MCP tool calls."""
+
     config: ServerConfig
     instance: dict[str, Any]
     card_db: CardDB
@@ -148,6 +149,7 @@ class ServerState:
 # ---------------------------------------------------------------------------
 # Asset discovery — mirror engine.core's behaviour for non-container runs
 # ---------------------------------------------------------------------------
+
 
 def _resolve_dataset(repo_root: Path, override: str | None) -> Path:
     if override:
@@ -179,14 +181,13 @@ def _load_instance(dataset_path: Path, puzzle_id: str) -> dict[str, Any]:
             d = json.loads(line)
             if d.get("instance_id") == puzzle_id:
                 return d
-    raise KeyError(
-        f"puzzle {puzzle_id!r} not found in {dataset_path}; check the id"
-    )
+    raise KeyError(f"puzzle {puzzle_id!r} not found in {dataset_path}; check the id")
 
 
 # ---------------------------------------------------------------------------
 # JSONL logging
 # ---------------------------------------------------------------------------
+
 
 def _log(state: ServerState, event: dict[str, Any]) -> None:
     state.log_fh.write(json.dumps(event, default=str) + "\n")
@@ -211,6 +212,7 @@ def _new_tool_use_id() -> str:
 # Tool registry — default mode (no inspect_card, no show_solution)
 # ---------------------------------------------------------------------------
 
+
 def _build_briefing_tool() -> dict[str, Any]:
     return {
         "name": "get_briefing",
@@ -234,7 +236,11 @@ def _container_tool_set() -> list[dict[str, Any]]:
     for t in TOOLS:
         name = t["name"]
         # Drop forage-only inspection (inspect_card).
-        if name not in ALWAYS_AVAILABLE_INSPECTION and name not in TOOL_TO_HARNESS_METHOD and name not in META_TOOL_NAMES:
+        if (
+            name not in ALWAYS_AVAILABLE_INSPECTION
+            and name not in TOOL_TO_HARNESS_METHOD
+            and name not in META_TOOL_NAMES
+        ):
             continue
         keep.append(t)
     return keep
@@ -255,6 +261,7 @@ def _container_tool_set() -> list[dict[str, Any]]:
 #   - "corrupt"  (couldn't parse)     → same as partial
 #   - "fresh"    (missing or empty)   → proceed normally
 # ---------------------------------------------------------------------------
+
 
 def _classify_existing_log(log_path: Path) -> str:
     if not log_path.exists():
@@ -321,6 +328,7 @@ def _handle_existing_log(log_path: Path, puzzle_id: str) -> bool:
 # Bootstrap — load puzzle, start engine, build briefing
 # ---------------------------------------------------------------------------
 
+
 def _bootstrap(config: ServerConfig) -> ServerState:
     instance = _load_instance(config.dataset_path, config.puzzle_id)
 
@@ -333,9 +341,13 @@ def _bootstrap(config: ServerConfig) -> ServerState:
         DYLIB_PATH,
         SCRIPT_DIR,
     )
+
     card_db = CardDB(Path(DB_DIR))
     engine = OCGEngine(
-        Path(DYLIB_PATH), card_db, Path(SCRIPT_DIR), Path(CARD_SCRIPT_DIR),
+        Path(DYLIB_PATH),
+        card_db,
+        Path(SCRIPT_DIR),
+        Path(CARD_SCRIPT_DIR),
     )
     harness = Harness(engine)
     initial_step = harness.start(instance["lua_setup"])
@@ -347,6 +359,7 @@ def _bootstrap(config: ServerConfig) -> ServerState:
         _auto_advance_opponent(harness, config.perspective)
 
     from lib.prompt_builder import build_interactive_system_prompt
+
     system_prompt = build_interactive_system_prompt(
         instance=instance,
         card_db=card_db,
@@ -371,21 +384,27 @@ def _bootstrap(config: ServerConfig) -> ServerState:
         log_fh=log_fh,
     )
 
-    _log(state, {
-        "type": "config",
-        "perspective": config.perspective,
-        "max_tool_calls": config.max_tool_calls,
-        "forage": False,
-        "show_solution": False,
-        "system_prompt": system_prompt,
-        "tools": tool_set,
-        "provider": {"name": "mcp-stdio", "model": "external", "container": True},
-    })
-    _log(state, {
-        "type": "start",
-        "events": initial_step.events,
-        "pending": _pending_summary(initial_step.pending),
-    })
+    _log(
+        state,
+        {
+            "type": "config",
+            "perspective": config.perspective,
+            "max_tool_calls": config.max_tool_calls,
+            "forage": False,
+            "show_solution": False,
+            "system_prompt": system_prompt,
+            "tools": tool_set,
+            "provider": {"name": "mcp-stdio", "model": "external", "container": True},
+        },
+    )
+    _log(
+        state,
+        {
+            "type": "start",
+            "events": initial_step.events,
+            "pending": _pending_summary(initial_step.pending),
+        },
+    )
 
     if initial_step.game_over:
         # Pathological: puzzle starts in a terminal state.
@@ -397,6 +416,7 @@ def _bootstrap(config: ServerConfig) -> ServerState:
 # Dispatch — same shape as Episode._dispatch_*, locally re-implemented
 # ---------------------------------------------------------------------------
 
+
 def _ok(content: str) -> dict[str, Any]:
     return {"content": content, "is_error": False}
 
@@ -407,7 +427,8 @@ def _err(msg: str) -> dict[str, Any]:
 
 def _full_observation_json(state: ServerState, events: list[dict] | None = None) -> str:
     snap = build_state(
-        state.harness, state.card_db,
+        state.harness,
+        state.card_db,
         perspective=state.config.perspective,
         include_decision=True,
         events=events or [],
@@ -418,10 +439,14 @@ def _full_observation_json(state: ServerState, events: list[dict] | None = None)
 def _dispatch_inspection(state: ServerState, name: str, args: dict[str, Any]) -> dict[str, Any]:
     if name == "get_state":
         p = int(args.get("perspective", state.config.perspective))
-        return _ok(_full_observation_json(state) if p == state.config.perspective else
-                   json.dumps(build_state(state.harness, state.card_db,
-                                          perspective=p, include_decision=True),
-                              default=str))
+        return _ok(
+            _full_observation_json(state)
+            if p == state.config.perspective
+            else json.dumps(
+                build_state(state.harness, state.card_db, perspective=p, include_decision=True),
+                default=str,
+            )
+        )
     if name == "pending_decision":
         pending = state.harness.pending
         if pending is None:
@@ -438,13 +463,15 @@ def _dispatch_meta(state: ServerState, name: str) -> dict[str, Any]:
         # Recreate the engine + harness from scratch on the same lua_setup.
         from engine.core import (
             CARD_SCRIPT_DIR,
-            DB_DIR,
             DYLIB_PATH,
             SCRIPT_DIR,
         )
+
         state.engine = OCGEngine(
-            Path(DYLIB_PATH), state.card_db,
-            Path(SCRIPT_DIR), Path(CARD_SCRIPT_DIR),
+            Path(DYLIB_PATH),
+            state.card_db,
+            Path(SCRIPT_DIR),
+            Path(CARD_SCRIPT_DIR),
         )
         state.harness = Harness(state.engine)
         step = state.harness.start(state.instance["lua_setup"])
@@ -455,8 +482,10 @@ def _dispatch_meta(state: ServerState, name: str) -> dict[str, Any]:
             "tool_calls_used": state.tool_calls_used,
             "tool_calls_remaining": state.config.max_tool_calls - state.tool_calls_used,
             "events": step.events,
-            "note": ("Engine state reset to puzzle initial conditions. "
-                     "The next observation reflects fresh state."),
+            "note": (
+                "Engine state reset to puzzle initial conditions. "
+                "The next observation reflects fresh state."
+            ),
         }
         return {"content": json.dumps(payload, default=str), "step": step}
     return _err(f"meta tool {name!r} not implemented")
@@ -502,10 +531,13 @@ def _maybe_auto_decline(state: ServerState, incoming_tool_name: str) -> None:
         try:
             step = state.harness.respond_select_chain(index=None)
         except Exception as e:  # noqa: BLE001
-            _log(state, {
-                "type": "auto_chain_decline_error",
-                "error": f"{type(e).__name__}: {e}",
-            })
+            _log(
+                state,
+                {
+                    "type": "auto_chain_decline_error",
+                    "error": f"{type(e).__name__}: {e}",
+                },
+            )
             return
         # Drain opponent decisions surfaced by the chain resolution before
         # the next loop iteration's pending check (mirrors engine.replay
@@ -513,13 +545,16 @@ def _maybe_auto_decline(state: ServerState, incoming_tool_name: str) -> None:
         if state.config.auto_opponent and not state.harness.state.game_over:
             _auto_advance_opponent(state.harness, state.config.perspective)
         state.auto_decline_count += 1
-        _log(state, {
-            "type": "auto_chain_decline",
-            "before_tool": incoming_tool_name,
-            "events": step.events[-10:],
-            "new_pending": _pending_summary(step.pending),
-            "game_over": step.game_over,
-        })
+        _log(
+            state,
+            {
+                "type": "auto_chain_decline",
+                "before_tool": incoming_tool_name,
+                "events": step.events[-10:],
+                "new_pending": _pending_summary(step.pending),
+                "game_over": step.game_over,
+            },
+        )
         if step.game_over or state.harness.state.game_over:
             _emit_outcome(state, "game_over", step)
             return
@@ -529,17 +564,21 @@ def _maybe_auto_decline(state: ServerState, incoming_tool_name: str) -> None:
 # MCP request handling — the single tool-call entry point
 # ---------------------------------------------------------------------------
 
+
 def _handle_tool_call(state: ServerState, name: str, arguments: dict[str, Any]) -> str:
     """Process one MCP tool call. Returns the textual content the MCP client
     receives back. Side-effect: writes JSONL events.
     """
     if state.terminated:
-        return json.dumps({
-            "ok": False,
-            "is_error": True,
-            "error": "episode terminated; container will exit shortly",
-            "outcome": state.last_outcome,
-        }, default=str)
+        return json.dumps(
+            {
+                "ok": False,
+                "is_error": True,
+                "error": "episode terminated; container will exit shortly",
+                "outcome": state.last_outcome,
+            },
+            default=str,
+        )
 
     # 0. Bootstrap-only tool: get_briefing returns the system prompt + first
     #    observation without consuming budget or advancing state.
@@ -552,7 +591,7 @@ def _handle_tool_call(state: ServerState, name: str, arguments: dict[str, Any]) 
             "tool_calls_remaining": state.config.max_tool_calls - state.tool_calls_used,
             "puzzle_id": state.config.puzzle_id,
             "note": "Call this once at start. Inspection tools (get_state, "
-                    "pending_decision, get_glossary) are also free.",
+            "pending_decision, get_glossary) are also free.",
         }
         return json.dumps(payload, default=str)
 
@@ -562,23 +601,29 @@ def _handle_tool_call(state: ServerState, name: str, arguments: dict[str, Any]) 
     if state.tool_calls_used >= state.config.max_tool_calls:
         if state.last_outcome is None:
             _emit_outcome(state, "tool_budget_exhausted", None)
-        return json.dumps({
-            "ok": False,
-            "is_error": True,
-            "error": (f"tool budget exhausted "
-                      f"({state.tool_calls_used}/{state.config.max_tool_calls})"),
-        })
+        return json.dumps(
+            {
+                "ok": False,
+                "is_error": True,
+                "error": (
+                    f"tool budget exhausted ({state.tool_calls_used}/{state.config.max_tool_calls})"
+                ),
+            }
+        )
 
     # 2. Auto-decline pending optional chain windows BEFORE dispatching the
     #    agent's incoming response/inspection/meta tool.
     _maybe_auto_decline(state, name)
     if state.terminated:  # auto-decline pushed us into game_over
-        return json.dumps({
-            "ok": False,
-            "is_error": True,
-            "error": "auto-chain-decline ended the episode",
-            "outcome": state.last_outcome,
-        }, default=str)
+        return json.dumps(
+            {
+                "ok": False,
+                "is_error": True,
+                "error": "auto-chain-decline ended the episode",
+                "outcome": state.last_outcome,
+            },
+            default=str,
+        )
 
     # 2b. Tolerant null-chain smoothing — mirrors engine.replay Case 1
     #     (replay.py:246-250). If the agent submits select_chain(index=None)
@@ -587,25 +632,34 @@ def _handle_tool_call(state: ServerState, name: str, arguments: dict[str, Any]) 
     #     is a no-op. Skip it so the agent's solution-extracted action
     #     sequence stays aligned with the live engine path. Required for
     #     bit-identity with engine.replay --solutions.
-    if (name == "select_chain"
-            and isinstance(arguments, dict)
-            and arguments.get("index") is None
-            and state.harness.pending is not None
-            and state.harness.pending.msg_name != "MSG_SELECT_CHAIN"):
-        _log(state, {
-            "type": "tolerant_null_chain_skip",
-            "before_tool": name,
-            "current_pending": _pending_summary(state.harness.pending),
-        })
+    if (
+        name == "select_chain"
+        and isinstance(arguments, dict)
+        and arguments.get("index") is None
+        and state.harness.pending is not None
+        and state.harness.pending.msg_name != "MSG_SELECT_CHAIN"
+    ):
+        _log(
+            state,
+            {
+                "type": "tolerant_null_chain_skip",
+                "before_tool": name,
+                "current_pending": _pending_summary(state.harness.pending),
+            },
+        )
         # Return a benign no-op result; do not consume budget.
-        return json.dumps({
-            "ok": True,
-            "skipped": True,
-            "reason": ("select_chain(null) submitted while engine is not at "
-                       "MSG_SELECT_CHAIN; treated as no-op (tolerant-replay "
-                       "rule mirroring engine.replay)"),
-            "current_pending": _pending_summary(state.harness.pending),
-        })
+        return json.dumps(
+            {
+                "ok": True,
+                "skipped": True,
+                "reason": (
+                    "select_chain(null) submitted while engine is not at "
+                    "MSG_SELECT_CHAIN; treated as no-op (tolerant-replay "
+                    "rule mirroring engine.replay)"
+                ),
+                "current_pending": _pending_summary(state.harness.pending),
+            }
+        )
 
     # 3. Dispatch by tool category, mirroring engine/episode.py's _dispatch.
     tool_use_id = _new_tool_use_id()
@@ -628,59 +682,77 @@ def _handle_tool_call(state: ServerState, name: str, arguments: dict[str, Any]) 
     #     pending. Mirrors engine.replay's line 327 hook. No-op when
     #     pending is already player-side, when game_over, or when
     #     auto_opponent is off.
-    if (state.config.auto_opponent
-            and not result.get("is_error")
-            and not state.harness.state.game_over):
+    if (
+        state.config.auto_opponent
+        and not result.get("is_error")
+        and not state.harness.state.game_over
+    ):
         try:
             _auto_advance_opponent(state.harness, state.config.perspective)
         except Exception as e:  # noqa: BLE001
-            _log(state, {
-                "type": "auto_opponent_error",
-                "error": f"{type(e).__name__}: {e}",
-            })
+            _log(
+                state,
+                {
+                    "type": "auto_opponent_error",
+                    "error": f"{type(e).__name__}: {e}",
+                },
+            )
 
     elapsed = time.time() - dispatch_started
 
     # 4. Emit the JSONL trio: model_turn (synthetic), tool_result, state_snapshot.
-    _log(state, {
-        "type": "model_turn",
-        "text": "",
-        "tool_calls": [{"id": tool_use_id, "name": name, "arguments": arguments}],
-        "stop_reason": "tool_use",
-        "provider_data": {},
-        "usage": {},
-        "elapsed_seconds": round(elapsed, 3),
-        "cumulative": {},
-        "response_headers": {},
-    })
-    _log(state, {
-        "type": "tool_result",
-        "tool_use_id": tool_use_id,
-        "name": name,
-        "arguments": arguments,
-        "content": result["content"],
-        "is_error": result.get("is_error", False),
-    })
+    _log(
+        state,
+        {
+            "type": "model_turn",
+            "text": "",
+            "tool_calls": [{"id": tool_use_id, "name": name, "arguments": arguments}],
+            "stop_reason": "tool_use",
+            "provider_data": {},
+            "usage": {},
+            "elapsed_seconds": round(elapsed, 3),
+            "cumulative": {},
+            "response_headers": {},
+        },
+    )
+    _log(
+        state,
+        {
+            "type": "tool_result",
+            "tool_use_id": tool_use_id,
+            "name": name,
+            "arguments": arguments,
+            "content": result["content"],
+            "is_error": result.get("is_error", False),
+        },
+    )
     try:
         if state.harness._started and state.engine.duel:
             snap = build_state(
-                state.harness, state.card_db,
+                state.harness,
+                state.card_db,
                 perspective=state.config.perspective,
                 include_decision=True,
             )
-            _log(state, {
+            _log(
+                state,
+                {
+                    "type": "state_snapshot",
+                    "after_tool": name,
+                    "after_tool_use_id": tool_use_id,
+                    "is_error": result.get("is_error", False),
+                    "state": snap,
+                },
+            )
+    except Exception as _e:  # noqa: BLE001
+        _log(
+            state,
+            {
                 "type": "state_snapshot",
                 "after_tool": name,
-                "after_tool_use_id": tool_use_id,
-                "is_error": result.get("is_error", False),
-                "state": snap,
-            })
-    except Exception as _e:  # noqa: BLE001
-        _log(state, {
-            "type": "state_snapshot",
-            "after_tool": name,
-            "error": f"{type(_e).__name__}: {_e}",
-        })
+                "error": f"{type(_e).__name__}: {_e}",
+            },
+        )
 
     # 5. The agent's actual tool result content: full observation post-action
     #    (for engine-mutating tools) or the tool's own payload (inspection/meta).
@@ -704,12 +776,14 @@ def _handle_tool_call(state: ServerState, name: str, arguments: dict[str, Any]) 
     # API-driven Episode loop sometimes returns plain-string errors but the
     # MCP surface aims for one shape.
     if result.get("is_error"):
-        return json.dumps({
-            "ok": False,
-            "is_error": True,
-            "tool": name,
-            "error": result["content"],
-        })
+        return json.dumps(
+            {
+                "ok": False,
+                "is_error": True,
+                "tool": name,
+                "error": result["content"],
+            }
+        )
     return result["content"]
 
 
@@ -726,37 +800,48 @@ def _terminal_chain_drain(state: ServerState) -> None:
     auto-declines to fire.
     """
     drained = 0
-    while (not state.harness.state.game_over
-           and state.harness.pending is not None
-           and state.harness.pending.msg_name == "MSG_SELECT_CHAIN"
-           and not getattr(state.harness.pending.parsed, "forced", False)):
+    while (
+        not state.harness.state.game_over
+        and state.harness.pending is not None
+        and state.harness.pending.msg_name == "MSG_SELECT_CHAIN"
+        and not getattr(state.harness.pending.parsed, "forced", False)
+    ):
         try:
             step = state.harness.respond_select_chain(index=None)
         except Exception as e:  # noqa: BLE001
-            _log(state, {
-                "type": "terminal_chain_drain_error",
-                "error": f"{type(e).__name__}: {e}",
-            })
+            _log(
+                state,
+                {
+                    "type": "terminal_chain_drain_error",
+                    "error": f"{type(e).__name__}: {e}",
+                },
+            )
             break
         drained += 1
         if state.config.auto_opponent and not state.harness.state.game_over:
             try:
                 _auto_advance_opponent(state.harness, state.config.perspective)
             except Exception as e:  # noqa: BLE001
-                _log(state, {
-                    "type": "auto_opponent_error",
-                    "error": f"{type(e).__name__}: {e}",
-                })
+                _log(
+                    state,
+                    {
+                        "type": "auto_opponent_error",
+                        "error": f"{type(e).__name__}: {e}",
+                    },
+                )
                 break
         if step.game_over or state.harness.state.game_over:
             break
     if drained:
-        _log(state, {
-            "type": "terminal_chain_drain",
-            "drained": drained,
-            "game_over": state.harness.state.game_over,
-            "winner": state.harness.state.winner,
-        })
+        _log(
+            state,
+            {
+                "type": "terminal_chain_drain",
+                "drained": drained,
+                "game_over": state.harness.state.game_over,
+                "winner": state.harness.state.winner,
+            },
+        )
 
 
 def _emit_outcome(state: ServerState, termination: str, step: Any) -> None:
@@ -790,6 +875,7 @@ def _emit_outcome(state: ServerState, termination: str, step: Any) -> None:
 # ---------------------------------------------------------------------------
 # MCP server bootstrap
 # ---------------------------------------------------------------------------
+
 
 async def _run_mcp(state: ServerState) -> None:
     """Run the MCP-over-stdio server until the agent disconnects or the
@@ -832,28 +918,38 @@ async def _run_mcp(state: ServerState) -> None:
 # Entry point
 # ---------------------------------------------------------------------------
 
+
 def _parse_args(argv: list[str] | None = None) -> ServerConfig:
     p = argparse.ArgumentParser(
         prog="agent-mcp-eval.server",
         description="yugi-bench MCP environment — one container, one puzzle.",
     )
-    p.add_argument("--puzzle", required=True,
-                   help="Puzzle instance_id (e.g. yugioh_puzzle_42ffb7a8).")
-    p.add_argument("--dataset", default=None,
-                   help="Path to yugioh_bench.jsonl. Defaults to /app/data/ "
-                        "in the container or ./data/ locally.")
-    p.add_argument("--results-dir", default=None,
-                   help="Directory for per-puzzle JSONL output. Defaults to "
-                        "/work/results in the container or ./results-mcp/ locally.")
+    p.add_argument(
+        "--puzzle", required=True, help="Puzzle instance_id (e.g. yugioh_puzzle_42ffb7a8)."
+    )
+    p.add_argument(
+        "--dataset",
+        default=None,
+        help="Path to yugioh_bench.jsonl. Defaults to /app/data/ "
+        "in the container or ./data/ locally.",
+    )
+    p.add_argument(
+        "--results-dir",
+        default=None,
+        help="Directory for per-puzzle JSONL output. Defaults to "
+        "/work/results in the container or ./results-mcp/ locally.",
+    )
     p.add_argument("--max-tool-calls", type=int, default=DEFAULT_MAX_TOOL_CALLS)
-    p.add_argument("--perspective", type=int, default=DEFAULT_PERSPECTIVE,
-                   choices=[0, 1])
-    p.add_argument("--auto-opponent", action="store_true",
-                   help="Drain opponent-side decisions automatically after "
-                        "each agent tool call (mirrors engine.replay's "
-                        "auto_opponent=True default). Off by default so the "
-                        "agent's view matches the live API-driven Episode "
-                        "loop exactly. Turn ON for replay-mode driver runs.")
+    p.add_argument("--perspective", type=int, default=DEFAULT_PERSPECTIVE, choices=[0, 1])
+    p.add_argument(
+        "--auto-opponent",
+        action="store_true",
+        help="Drain opponent-side decisions automatically after "
+        "each agent tool call (mirrors engine.replay's "
+        "auto_opponent=True default). Off by default so the "
+        "agent's view matches the live API-driven Episode "
+        "loop exactly. Turn ON for replay-mode driver runs.",
+    )
     args = p.parse_args(argv)
 
     repo_root = Path(os.environ.get("YGO_BENCH_ROOT", str(_REPO_ROOT)))

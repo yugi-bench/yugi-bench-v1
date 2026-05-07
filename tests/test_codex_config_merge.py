@@ -18,12 +18,12 @@ No docker / podman / engine needed.  Pure-bash + tomllib + a 4-line
 stub.  Skipped if the codex/ subfolder is missing (e.g. running an
 older checkout).
 """
+
 from __future__ import annotations
 
 import json
 import os
 import subprocess
-import sys
 import textwrap
 from pathlib import Path
 
@@ -43,15 +43,30 @@ _DATASET = _REPO_ROOT / "data" / "yugioh_bench.jsonl"
 # filtered by container.server._container_tool_set.
 EXPECTED_TOOLS = {
     "get_briefing",
-    "get_state", "pending_decision", "get_glossary",
+    "get_state",
+    "pending_decision",
+    "get_glossary",
     "restart",
-    "select_battlecmd", "select_idlecmd", "select_effectyn",
-    "select_yesno", "select_option", "select_card",
-    "select_card_codes", "select_unselect_card", "select_chain",
-    "select_place", "select_position", "select_tribute",
-    "select_counter", "select_sum", "sort_card",
-    "announce_race", "announce_attribute", "announce_card",
-    "announce_number", "rock_paper_scissors",
+    "select_battlecmd",
+    "select_idlecmd",
+    "select_effectyn",
+    "select_yesno",
+    "select_option",
+    "select_card",
+    "select_card_codes",
+    "select_unselect_card",
+    "select_chain",
+    "select_place",
+    "select_position",
+    "select_tribute",
+    "select_counter",
+    "select_sum",
+    "sort_card",
+    "announce_race",
+    "announce_attribute",
+    "announce_card",
+    "announce_number",
+    "rock_paper_scissors",
 }
 
 
@@ -59,12 +74,14 @@ def _stub_docker(tmp_path: Path) -> Path:
     """Tiny stub that mimics docker enough for the prep script's
     `docker image inspect` check (returns 0 for any args)."""
     stub = tmp_path / "fake-docker"
-    stub.write_text(textwrap.dedent("""\
+    stub.write_text(
+        textwrap.dedent("""\
         #!/usr/bin/env bash
         # Stub docker for tests.  `image inspect` and any other subcommand
         # exits 0; produces no output.  We never actually launch the image.
         exit 0
-    """))
+    """)
+    )
     stub.chmod(0o755)
     return stub
 
@@ -126,6 +143,7 @@ def config_doc(workspace: Path) -> dict:
 # Top-level structure
 # ---------------------------------------------------------------------------
 
+
 def test_top_level_scalars_present(config_doc: dict):
     """All 10 expected top-level scalars in the right position (BEFORE
     any [section] header) and with the right values."""
@@ -143,8 +161,7 @@ def test_top_level_scalars_present(config_doc: dict):
     }
     for key, value in expected.items():
         assert config_doc.get(key) == value, (
-            f"top-level scalar {key}: expected {value!r}, "
-            f"got {config_doc.get(key)!r}"
+            f"top-level scalar {key}: expected {value!r}, got {config_doc.get(key)!r}"
         )
 
 
@@ -162,9 +179,17 @@ def test_top_level_table_count(config_doc: dict):
     mcp_servers, memories, permissions, projects,
     sandbox_workspace_write, tools."""
     expected_tables = {
-        "analytics", "apps", "features", "feedback", "history",
-        "mcp_servers", "memories", "permissions", "projects",
-        "sandbox_workspace_write", "tools",
+        "analytics",
+        "apps",
+        "features",
+        "feedback",
+        "history",
+        "mcp_servers",
+        "memories",
+        "permissions",
+        "projects",
+        "sandbox_workspace_write",
+        "tools",
     }
     actual_tables = {k for k, v in config_doc.items() if isinstance(v, dict)}
     assert actual_tables == expected_tables
@@ -174,12 +199,22 @@ def test_top_level_table_count(config_doc: dict):
 # Specific lockdown sections
 # ---------------------------------------------------------------------------
 
+
 def test_features_disabled(config_doc: dict):
     features = config_doc["features"]
     expected_off = {
-        "apps", "codex_hooks", "fast_mode", "memories", "multi_agent",
-        "personality", "prevent_idle_sleep", "shell_snapshot", "shell_tool",
-        "skill_mcp_dependency_install", "undo", "unified_exec",
+        "apps",
+        "codex_hooks",
+        "fast_mode",
+        "memories",
+        "multi_agent",
+        "personality",
+        "prevent_idle_sleep",
+        "shell_snapshot",
+        "shell_tool",
+        "skill_mcp_dependency_install",
+        "undo",
+        "unified_exec",
     }
     assert set(features.keys()) == expected_off
     for key in expected_off:
@@ -242,6 +277,7 @@ def test_projects_trust_block(config_doc: dict, workspace: Path):
 # MCP server + tool surface
 # ---------------------------------------------------------------------------
 
+
 def test_mcp_server_yugi_bench_present(config_doc: dict):
     mcp = config_doc["mcp_servers"]["yugi-bench"]
     assert mcp["startup_timeout_sec"] == 120
@@ -286,6 +322,7 @@ def test_workspace_path_no_placeholder_left(config_doc: dict):
 # ---------------------------------------------------------------------------
 # Sanity: round-trip through tomllib
 # ---------------------------------------------------------------------------
+
 
 def test_config_round_trips_through_tomllib(workspace: Path):
     """The produced config.toml must be valid TOML that re-parses to

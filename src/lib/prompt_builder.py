@@ -31,20 +31,15 @@ Section order:
 from __future__ import annotations
 
 import json
-import re
-from typing import Any
 
 from engine.core import CardDB
 from engine.harness import Harness
 
 from . import grammar, puzzle_preamble
 from .glossary import (
-    collect_visible_codes_from_state,
     render_full_glossary,
-    render_seen_glossary,
 )
-from .state_render import render_omniscient_state, render_visible_state
-
+from .state_render import render_omniscient_state
 
 # ---------------------------------------------------------------------------
 # Carving the rules reference out of instance['prompt']
@@ -73,6 +68,7 @@ def carve_rules_reference(raw_prompt: str) -> str:
 # Optional sections
 # ---------------------------------------------------------------------------
 
+
 def _solution_walkthrough_section(instance: dict) -> str:
     steps = instance.get("gold_solution_steps") or []
     if not steps:
@@ -99,7 +95,7 @@ def _retry_context(attempt_index: int, last_failure: dict | None) -> str:
     # model what went wrong format-wise; engine state is irrelevant
     # here because no actions were applied.
     if last_failure.get("parse_error"):
-        preview = last_failure.get("previous_text_preview", "")
+        last_failure.get("previous_text_preview", "")
         return (
             f"## Retry — Attempt {attempt_index + 1}\n\n"
             f"Your previous response could not be parsed as a JSON "
@@ -116,11 +112,15 @@ def _retry_context(attempt_index: int, last_failure: dict | None) -> str:
     err = last_failure.get("error") or last_failure.get("status") or "unknown"
     failed_at = last_failure.get("failed_at_index")
     pending = last_failure.get("pending_after") or last_failure.get("pending")
-    pending_txt = (json.dumps(pending, indent=2, default=str)
-                   if pending else "(no pending — duel ended without a win)")
+    pending_txt = (
+        json.dumps(pending, indent=2, default=str)
+        if pending
+        else "(no pending — duel ended without a win)"
+    )
     failed_at_line = (
         f"Your previous submission failed at action index {failed_at}.\n\n"
-        if failed_at is not None else ""
+        if failed_at is not None
+        else ""
     )
     return (
         f"## Retry — Attempt {attempt_index + 1}\n\n"
@@ -138,6 +138,7 @@ def _retry_context(attempt_index: int, last_failure: dict | None) -> str:
 # ---------------------------------------------------------------------------
 # Mode-tail variants
 # ---------------------------------------------------------------------------
+
 
 def _mode_tail_bulk(attempts: int) -> str:
     if attempts == 1:
@@ -215,15 +216,19 @@ def _mode_tail_interactive(forage: bool, restart_always: bool = True) -> str:
         )
 
     restart_section = (
-        "\n"
-        "### Restart\n"
-        "\n"
-        "If you make an irrecoverable mistake or get genuinely stuck, "
-        "call `restart` to reset the puzzle to its initial conditions.  "
-        "Conversation history is preserved (so you can learn from prior "
-        "attempts) but the engine is rebuilt from scratch.  The "
-        "tool-call budget keeps ticking — restart is not free.\n"
-    ) if restart_always else ""
+        (
+            "\n"
+            "### Restart\n"
+            "\n"
+            "If you make an irrecoverable mistake or get genuinely stuck, "
+            "call `restart` to reset the puzzle to its initial conditions.  "
+            "Conversation history is preserved (so you can learn from prior "
+            "attempts) but the engine is rebuilt from scratch.  The "
+            "tool-call budget keeps ticking — restart is not free.\n"
+        )
+        if restart_always
+        else ""
+    )
 
     return (
         "## How To Play (interactive)\n\n"
@@ -250,6 +255,7 @@ def _mode_tail_interactive(forage: bool, restart_always: bool = True) -> str:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def build_bulk_prompt(
     *,

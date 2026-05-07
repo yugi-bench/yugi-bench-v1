@@ -17,14 +17,6 @@ from __future__ import annotations
 from typing import Any
 
 from .core import (
-    AnnounceAttrib,
-    AnnounceCard,
-    AnnounceNumber,
-    AnnounceRace,
-    BattleCmd,
-    CardDB,
-    IdleCmd,
-    IdleCmdOption,
     MSG_ANNOUNCE_ATTRIB,
     MSG_ANNOUNCE_CARD,
     MSG_ANNOUNCE_NUMBER,
@@ -46,7 +38,14 @@ from .core import (
     MSG_SELECT_YESNO,
     MSG_SORT_CARD,
     MSG_SORT_CHAIN,
-    OCGEngine,
+    AnnounceAttrib,
+    AnnounceCard,
+    AnnounceNumber,
+    AnnounceRace,
+    BattleCmd,
+    CardDB,
+    IdleCmd,
+    IdleCmdOption,
     SelectCard,
     SelectChain,
     SelectCounter,
@@ -60,7 +59,6 @@ from .core import (
     SortCard,
     build_observation,
     render_location,
-    render_phase,
     render_position,
     resolve_desc_id,
 )
@@ -172,8 +170,7 @@ def build_decision(decision: PendingDecision, card_db: CardDB) -> dict:
         assert isinstance(p, SelectChain)
         out["forced"] = p.forced
         out["cards"] = [
-            {**_card_label(c, card_db),
-             "description": resolve_desc_id(c["desc"], card_db)}
+            {**_card_label(c, card_db), "description": resolve_desc_id(c["desc"], card_db)}
             for c in p.cards
         ]
         out["responder"] = "select_chain"
@@ -181,9 +178,7 @@ def build_decision(decision: PendingDecision, card_db: CardDB) -> dict:
         assert isinstance(p, SelectPosition)
         out["about_code"] = p.code
         out["about_name"] = (card_db.get(p.code) or {}).get("name", f"Card#{p.code}")
-        out["allowed_positions"] = [
-            pos for pos in (0x1, 0x2, 0x4, 0x8) if p.positions & pos
-        ]
+        out["allowed_positions"] = [pos for pos in (0x1, 0x2, 0x4, 0x8) if p.positions & pos]
         out["allowed_positions_named"] = [
             render_position(pos) for pos in (0x1, 0x2, 0x4, 0x8) if p.positions & pos
         ]
@@ -220,10 +215,7 @@ def build_decision(decision: PendingDecision, card_db: CardDB) -> dict:
         assert isinstance(p, SelectCounter)
         out["counter_type"] = p.counter_type
         out["total_needed"] = p.count
-        out["cards"] = [
-            {**_card_label(c, card_db), "counter": c["counter"]}
-            for c in p.cards
-        ]
+        out["cards"] = [{**_card_label(c, card_db), "counter": c["counter"]} for c in p.cards]
         out["responder"] = "select_counter"
     elif msg_type in (MSG_SORT_CARD, MSG_SORT_CHAIN):
         assert isinstance(p, SortCard)
@@ -260,8 +252,12 @@ def _idle_choices(cmd: IdleCmd, card_db: CardDB) -> list[dict]:
     for opt in cmd.options:
         by_cat.setdefault(opt.category, []).append(opt)
     for cat, command in (
-        (0, "summon"), (1, "sp_summon"), (2, "repos"),
-        (3, "set_monster"), (4, "set_spell"), (5, "activate"),
+        (0, "summon"),
+        (1, "sp_summon"),
+        (2, "repos"),
+        (3, "set_monster"),
+        (4, "set_spell"),
+        (5, "activate"),
     ):
         for opt in by_cat.get(cat, []):
             entry: dict = {

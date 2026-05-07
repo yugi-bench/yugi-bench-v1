@@ -10,10 +10,10 @@ Dispatch is trivial: ``getattr(harness, TOOL_TO_METHOD[name])(**kwargs)``.
 Tool names match the harness method names (minus the ``respond_`` prefix)
 so the map is mechanical.
 """
+
 from __future__ import annotations
 
 from typing import Any
-
 
 # ---------------------------------------------------------------------------
 # Inspection tools — read-only.
@@ -145,9 +145,15 @@ RESPONSE_TOOLS: list[dict[str, Any]] = [
                 "command": {
                     "type": "string",
                     "enum": [
-                        "summon", "sp_summon", "repos", "set_monster",
-                        "set_spell", "activate",
-                        "to_battle_phase", "to_end_phase", "shuffle_hand",
+                        "summon",
+                        "sp_summon",
+                        "repos",
+                        "set_monster",
+                        "set_spell",
+                        "activate",
+                        "to_battle_phase",
+                        "to_end_phase",
+                        "shuffle_hand",
                     ],
                 },
                 "index": {
@@ -311,7 +317,7 @@ RESPONSE_TOOLS: list[dict[str, Any]] = [
                     "items": {
                         "type": "object",
                         "properties": {
-                            "player":   {"type": "integer", "enum": [0, 1]},
+                            "player": {"type": "integer", "enum": [0, 1]},
                             "location": {
                                 "type": "integer",
                                 "description": (
@@ -380,9 +386,7 @@ RESPONSE_TOOLS: list[dict[str, Any]] = [
                 "counts": {
                     "type": "array",
                     "items": {"type": "integer", "minimum": 0},
-                    "description": (
-                        "One entry per card in pending.cards (same order)."
-                    ),
+                    "description": ("One entry per card in pending.cards (same order)."),
                 },
             },
             "required": ["counts"],
@@ -420,8 +424,7 @@ RESPONSE_TOOLS: list[dict[str, Any]] = [
                     "type": ["array", "null"],
                     "items": {"type": "integer", "minimum": 0},
                     "description": (
-                        "Permutation of [0, n-1], or null to skip (card order "
-                        "unchanged)."
+                        "Permutation of [0, n-1], or null to skip (card order unchanged)."
                     ),
                 },
             },
@@ -491,8 +494,7 @@ RESPONSE_TOOLS: list[dict[str, Any]] = [
     {
         "name": "rock_paper_scissors",
         "description": (
-            "Respond to MSG_ROCK_PAPER_SCISSORS — 1 (rock), 2 (scissors), or "
-            "3 (paper)."
+            "Respond to MSG_ROCK_PAPER_SCISSORS — 1 (rock), 2 (scissors), or 3 (paper)."
         ),
         "input_schema": {
             "type": "object",
@@ -539,31 +541,36 @@ TOOLS: list[dict[str, Any]] = INSPECTION_TOOLS + META_TOOLS + RESPONSE_TOOLS
 # ---------------------------------------------------------------------------
 
 TOOL_TO_HARNESS_METHOD: dict[str, str] = {
-    "select_battlecmd":       "respond_select_battlecmd",
-    "select_idlecmd":         "respond_select_idlecmd",
-    "select_effectyn":        "respond_select_effectyn",
-    "select_yesno":           "respond_select_yesno",
-    "select_option":          "respond_select_option",
-    "select_card":            "respond_select_card",
-    "select_card_codes":      "respond_select_card_codes",
-    "select_unselect_card":   "respond_select_unselect_card",
-    "select_chain":           "respond_select_chain",
-    "select_place":           "respond_select_place",
-    "select_position":        "respond_select_position",
-    "select_tribute":         "respond_select_tribute",
-    "select_counter":         "respond_select_counter",
-    "select_sum":             "respond_select_sum",
-    "sort_card":              "respond_sort_card",
-    "announce_race":          "respond_announce_race",
-    "announce_attribute":     "respond_announce_attribute",
-    "announce_card":          "respond_announce_card",
-    "announce_number":        "respond_announce_number",
-    "rock_paper_scissors":    "respond_rock_paper_scissors",
+    "select_battlecmd": "respond_select_battlecmd",
+    "select_idlecmd": "respond_select_idlecmd",
+    "select_effectyn": "respond_select_effectyn",
+    "select_yesno": "respond_select_yesno",
+    "select_option": "respond_select_option",
+    "select_card": "respond_select_card",
+    "select_card_codes": "respond_select_card_codes",
+    "select_unselect_card": "respond_select_unselect_card",
+    "select_chain": "respond_select_chain",
+    "select_place": "respond_select_place",
+    "select_position": "respond_select_position",
+    "select_tribute": "respond_select_tribute",
+    "select_counter": "respond_select_counter",
+    "select_sum": "respond_select_sum",
+    "sort_card": "respond_sort_card",
+    "announce_race": "respond_announce_race",
+    "announce_attribute": "respond_announce_attribute",
+    "announce_card": "respond_announce_card",
+    "announce_number": "respond_announce_number",
+    "rock_paper_scissors": "respond_rock_paper_scissors",
 }
 
-INSPECTION_TOOL_NAMES: frozenset[str] = frozenset({
-    "get_state", "pending_decision", "inspect_card", "get_glossary",
-})
+INSPECTION_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "get_state",
+        "pending_decision",
+        "inspect_card",
+        "get_glossary",
+    }
+)
 
 # Inspection tools always available regardless of --forage:
 # - get_state / pending_decision: reflect EVOLVING engine state that
@@ -574,18 +581,24 @@ INSPECTION_TOOL_NAMES: frozenset[str] = frozenset({
 #   flags, link markers, win-reason codes).  The prompt's notation
 #   block only covers a subset, so the full decoder is genuinely
 #   useful even when the rest of the prompt is rich.
-ALWAYS_AVAILABLE_INSPECTION: frozenset[str] = frozenset({
-    "get_state", "pending_decision", "get_glossary",
-})
+ALWAYS_AVAILABLE_INSPECTION: frozenset[str] = frozenset(
+    {
+        "get_state",
+        "pending_decision",
+        "get_glossary",
+    }
+)
 
 # Inspection tools whose output IS just a re-read of static info
 # already in the system prompt (default mode).  Gated on --forage:
 # only available when the prompt is lean.
 # - inspect_card: every card_id in the puzzle is in the prompt's
 #   glossary section already.
-FORAGE_ONLY_INSPECTION: frozenset[str] = frozenset({
-    "inspect_card",
-})
+FORAGE_ONLY_INSPECTION: frozenset[str] = frozenset(
+    {
+        "inspect_card",
+    }
+)
 
 META_TOOL_NAMES: frozenset[str] = frozenset({"restart"})
 

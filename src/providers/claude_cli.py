@@ -45,7 +45,6 @@ from .base import (
     ToolSchema,
 )
 
-
 _CLI_OUTPUT_FORMAT_INSTRUCTION = """\
 You communicate with the puzzle harness ONLY by emitting tool calls as
 fenced JSON blocks in your reply.  Each tool call must look exactly like:
@@ -101,10 +100,14 @@ def _render_messages_for_cli(messages: list[Message]) -> str:
                 block.append(text)
             for tc in tcs:
                 block.append("```json")
-                block.append(json.dumps({
-                    "tool": tc["name"],
-                    "args": tc.get("arguments", {}),
-                }))
+                block.append(
+                    json.dumps(
+                        {
+                            "tool": tc["name"],
+                            "args": tc.get("arguments", {}),
+                        }
+                    )
+                )
                 block.append("```")
             chunks.append("\n".join(block))
         elif role == "tool":
@@ -135,11 +138,13 @@ def _extract_tool_calls_from_text(text: str) -> list[ToolCall]:
         args = obj.get("args", {})
         if not isinstance(args, dict):
             args = {}
-        out.append(ToolCall(
-            id=f"call_{uuid.uuid4().hex[:12]}",
-            name=name,
-            arguments=args,
-        ))
+        out.append(
+            ToolCall(
+                id=f"call_{uuid.uuid4().hex[:12]}",
+                name=name,
+                arguments=args,
+            )
+        )
     return out
 
 
@@ -172,8 +177,7 @@ class ClaudeCLIToolProvider(ToolCallingProvider):
         bin_path = claude_bin or shutil.which("claude")
         if not bin_path:
             raise RuntimeError(
-                "`claude` binary not found on PATH.  Install Claude Code "
-                "or pass claude_bin=<path>."
+                "`claude` binary not found on PATH.  Install Claude Code or pass claude_bin=<path>."
             )
         self.claude_bin = bin_path
         self.model = model
@@ -196,21 +200,30 @@ class ClaudeCLIToolProvider(ToolCallingProvider):
         }
 
     def _build_system_prompt(self, base_system: str, tools: list[ToolSchema]) -> str:
-        return (base_system.rstrip()
-                + "\n\n" + _CLI_OUTPUT_FORMAT_INSTRUCTION
-                + _render_tools_for_cli(tools))
+        return (
+            base_system.rstrip()
+            + "\n\n"
+            + _CLI_OUTPUT_FORMAT_INSTRUCTION
+            + _render_tools_for_cli(tools)
+        )
 
     def _build_argv(self, system_prompt: str) -> list[str]:
         argv = [
             self.claude_bin,
             "--print",
-            "--input-format", "stream-json",
-            "--output-format", "stream-json",
+            "--input-format",
+            "stream-json",
+            "--output-format",
+            "stream-json",
             "--verbose",
-            "--model", self.model,
-            "--system-prompt", system_prompt,
-            "--tools", "",
-            "--setting-sources", "",
+            "--model",
+            self.model,
+            "--system-prompt",
+            system_prompt,
+            "--tools",
+            "",
+            "--setting-sources",
+            "",
             "--strict-mcp-config",
             "--disable-slash-commands",
             "--no-session-persistence",
@@ -226,6 +239,7 @@ class ClaudeCLIToolProvider(ToolCallingProvider):
         tools: list[ToolSchema],
     ) -> ModelTurn:
         import time
+
         full_system = self._build_system_prompt(system, tools)
         user_text = _render_messages_for_cli(messages)
         argv = self._build_argv(full_system)
@@ -234,18 +248,21 @@ class ClaudeCLIToolProvider(ToolCallingProvider):
         if self.log_dir is not None:
             run_log_path = self.log_dir / f"{run_id}.jsonl"
         cwd = "/tmp"
-        env = {k: v for k, v in os.environ.items()
-               if not k.startswith("CLAUDE_CODE_")}
+        env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE_CODE_")}
         env.pop("ANTHROPIC_API_KEY", None)
-        user_turn = {"type": "user",
-                     "message": {"role": "user", "content": user_text}}
+        user_turn = {"type": "user", "message": {"role": "user", "content": user_text}}
 
         t_start = time.time()
         try:
             proc = subprocess.Popen(
-                argv, cwd=cwd, env=env,
-                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE, text=True, bufsize=1,
+                argv,
+                cwd=cwd,
+                env=env,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
             )
         except OSError as exc:
             raise RuntimeError(f"failed to launch claude CLI: {exc}") from exc
@@ -270,14 +287,19 @@ class ClaudeCLIToolProvider(ToolCallingProvider):
                 for chunk in proc.stderr:
                     stderr_chunks.append(chunk)
                 stderr_done.set()
+
             stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
             stderr_thread.start()
 
             killed = {"hit": False}
+
             def _kill_on_timeout() -> None:
                 killed["hit"] = True
-                try: proc.kill()
-                except Exception: pass
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+
             watchdog = threading.Timer(self.timeout_seconds, _kill_on_timeout)
             watchdog.daemon = True
             watchdog.start()
@@ -307,20 +329,28 @@ class ClaudeCLIToolProvider(ToolCallingProvider):
                         stop_reason = record.get("stop_reason") or stop_reason
                         if record.get("is_error"):
                             err_str = str(record.get("error", "")).lower()
-                            if any(t in err_str for t in
-                                   ("rate", "429", "quota", "overload")):
+                            if any(t in err_str for t in ("rate", "429", "quota", "overload")):
                                 rate_limited = True
                     elif rtype == "error":
                         err = str(record).lower()
-                        if any(t in err for t in
-                               ("rate_limit", "rate limit", "overloaded",
-                                "429", "too many requests")):
+                        if any(
+                            t in err
+                            for t in (
+                                "rate_limit",
+                                "rate limit",
+                                "overloaded",
+                                "429",
+                                "too many requests",
+                            )
+                        ):
                             rate_limited = True
             finally:
                 watchdog.cancel()
-                try: proc.wait(timeout=10)
+                try:
+                    proc.wait(timeout=10)
                 except subprocess.TimeoutExpired:
-                    proc.kill(); proc.wait()
+                    proc.kill()
+                    proc.wait()
                 stderr_thread.join(timeout=5)
 
             stderr_text = "".join(stderr_chunks)
@@ -341,16 +371,17 @@ class ClaudeCLIToolProvider(ToolCallingProvider):
                 )
             if proc.returncode != 0 and not assistant_text_parts:
                 stderr_lower = stderr_text.lower()
-                if any(t in stderr_lower for t in
-                       ("rate", "429", "quota", "overload")):
+                if any(t in stderr_lower for t in ("rate", "429", "quota", "overload")):
                     rate_limited = True
                 raise RuntimeError(
                     f"claude CLI exited {proc.returncode} with no assistant "
                     f"output; stderr tail: {stderr_text[-1000:]!r}"
                 )
         except Exception:
-            try: proc.kill()
-            except Exception: pass
+            try:
+                proc.kill()
+            except Exception:
+                pass
             raise
 
         wallclock = time.time() - t_start
@@ -361,8 +392,11 @@ class ClaudeCLIToolProvider(ToolCallingProvider):
             text=text,
             tool_calls=tool_calls,
             stop_reason=stop_reason,
-            raw={"events": events_seen, "rate_limited": rate_limited,
-                 "log_path": str(run_log_path) if run_log_path else None},
+            raw={
+                "events": events_seen,
+                "rate_limited": rate_limited,
+                "log_path": str(run_log_path) if run_log_path else None,
+            },
             wallclock_seconds=wallclock,
             provider_data={
                 "events_seen": events_seen,

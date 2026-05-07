@@ -32,10 +32,12 @@ material readers: drop a `runs/` tree into a freshly cloned yugi-bench
 checkout and `python api-eval/aggregate.py runs/<name>` reproduces the
 paper's headline numbers without API spend.
 """
+
 from __future__ import annotations
 
 import sys
 from pathlib import Path as _Path
+
 _REPO_ROOT = _Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "src"))
@@ -49,7 +51,7 @@ import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DATASET = REPO_ROOT / "data" / "yugioh_bench.jsonl"
@@ -179,8 +181,7 @@ def load_dataset_metadata(dataset_path: Path) -> dict[str, dict]:
     return out
 
 
-def _classify_recorded(termination: str | None, winner: int | None,
-                       perspective: int) -> str:
+def _classify_recorded(termination: str | None, winner: int | None, perspective: int) -> str:
     """Re-classify a recorded outcome row's (termination, winner) into the
     aggregator's status taxonomy. Used only for ``has_recorded_mismatch``."""
     if termination is None:
@@ -314,8 +315,7 @@ def derive_from_trace(jsonl_path: Path) -> dict[str, Any]:
             # crashing — even if mid-run provider errors occurred and
             # the runner recovered.
             status = "stopped"
-        elif (max_tool_calls is not None
-              and tool_calls_count >= max_tool_calls):
+        elif max_tool_calls is not None and tool_calls_count >= max_tool_calls:
             status = "exhausted"
         elif saw_provider_error or saw_exception_event:
             # An error row appeared and the trace ended without a clean
@@ -343,12 +343,11 @@ def derive_from_trace(jsonl_path: Path) -> dict[str, Any]:
         if not out["usage_totals"]:
             mut = recorded.get("model_usage_totals") or {}
             if isinstance(mut, dict):
-                out["usage_totals"] = {
-                    k: v for k, v in mut.items()
-                    if isinstance(v, (int, float))
-                }
+                out["usage_totals"] = {k: v for k, v in mut.items() if isinstance(v, (int, float))}
         out["recorded_status"] = _classify_recorded(
-            recorded.get("termination"), recorded.get("winner"), perspective,
+            recorded.get("termination"),
+            recorded.get("winner"),
+            perspective,
         )
     return out
 
@@ -427,12 +426,14 @@ def by_complexity(outcomes: list[PuzzleOutcome]) -> list[dict]:
     for tier in sorted(bins.keys(), key=lambda t: (t is None, t)):
         bucket = bins[tier]
         wins = sum(1 for o in bucket if o.status == "win")
-        rows.append({
-            "tier": tier if tier is not None else "unknown",
-            "n": len(bucket),
-            "wins": wins,
-            "win_rate": wins / len(bucket) if bucket else 0.0,
-        })
+        rows.append(
+            {
+                "tier": tier if tier is not None else "unknown",
+                "n": len(bucket),
+                "wins": wins,
+                "win_rate": wins / len(bucket) if bucket else 0.0,
+            }
+        )
     return rows
 
 
@@ -456,13 +457,15 @@ def by_source(outcomes: list[PuzzleOutcome]) -> dict[str, Any]:
     for src in sorted(by_src.keys(), key=lambda s: -len(by_src[s])):
         bucket = by_src[src]
         wins = sum(1 for o in bucket if o.status == "win")
-        src_rows.append({
-            "source": src,
-            "kind": _classify_source_kind(src),
-            "n": len(bucket),
-            "wins": wins,
-            "win_rate": wins / len(bucket) if bucket else 0.0,
-        })
+        src_rows.append(
+            {
+                "source": src,
+                "kind": _classify_source_kind(src),
+                "n": len(bucket),
+                "wins": wins,
+                "win_rate": wins / len(bucket) if bucket else 0.0,
+            }
+        )
 
     kind_rows = []
     for kind in ("official", "community", "other"):
@@ -470,12 +473,14 @@ def by_source(outcomes: list[PuzzleOutcome]) -> dict[str, Any]:
         if not bucket:
             continue
         wins = sum(1 for o in bucket if o.status == "win")
-        kind_rows.append({
-            "kind": kind,
-            "n": len(bucket),
-            "wins": wins,
-            "win_rate": wins / len(bucket) if bucket else 0.0,
-        })
+        kind_rows.append(
+            {
+                "kind": kind,
+                "n": len(bucket),
+                "wins": wins,
+                "win_rate": wins / len(bucket) if bucket else 0.0,
+            }
+        )
     return {"by_source": src_rows, "by_kind": kind_rows}
 
 
@@ -496,12 +501,11 @@ def _fmt_pct(x: float) -> str:
     return f"{x * 100:.1f}%"
 
 
-def _ascii_table(headers: list[str], rows: list[list[str]],
-                 align: list[str] | None = None) -> str:
+def _ascii_table(headers: list[str], rows: list[list[str]], align: list[str] | None = None) -> str:
     """Pretty-print an ASCII table; align is per-column 'l' or 'r'."""
     if align is None:
         align = ["l"] * len(headers)
-    cols = list(zip(headers, *rows))
+    cols = list(zip(headers, *rows, strict=False))
     widths = [max(len(str(c)) for c in col) for col in cols]
     sep = "  "
 
@@ -521,7 +525,7 @@ def _ascii_table(headers: list[str], rows: list[list[str]],
 def render_text(report: dict) -> str:
     buf = io.StringIO()
     h = report["headline"]
-    buf.write(f"yugi-bench results aggregate\n")
+    buf.write("yugi-bench results aggregate\n")
     buf.write(f"  runs scanned : {', '.join(report['runs'])}\n")
     buf.write(f"  puzzles       : {h['n_puzzles']}\n")
     buf.write(f"  wins          : {h['wins']} ({_fmt_pct(h['win_rate'])})\n")
@@ -529,20 +533,24 @@ def render_text(report: dict) -> str:
 
     buf.write("by status\n")
     rows = sorted(h["by_status"].items(), key=lambda kv: -kv[1])
-    buf.write(_ascii_table(
-        ["status", "n"],
-        [[k, str(v)] for k, v in rows],
-        align=["l", "r"],
-    ))
+    buf.write(
+        _ascii_table(
+            ["status", "n"],
+            [[k, str(v)] for k, v in rows],
+            align=["l", "r"],
+        )
+    )
     buf.write("\n\n")
 
     buf.write("by termination\n")
     rows = sorted(report["by_termination"].items(), key=lambda kv: -kv[1])
-    buf.write(_ascii_table(
-        ["termination", "n"],
-        [[k, str(v)] for k, v in rows],
-        align=["l", "r"],
-    ))
+    buf.write(
+        _ascii_table(
+            ["termination", "n"],
+            [[k, str(v)] for k, v in rows],
+            align=["l", "r"],
+        )
+    )
     buf.write("\n\n")
 
     buf.write("by complexity tier\n")
@@ -550,70 +558,78 @@ def render_text(report: dict) -> str:
         [str(r["tier"]), str(r["n"]), str(r["wins"]), _fmt_pct(r["win_rate"])]
         for r in report["by_complexity"]
     ]
-    buf.write(_ascii_table(
-        ["tier", "n", "wins", "rate"],
-        rows,
-        align=["l", "r", "r", "r"],
-    ))
+    buf.write(
+        _ascii_table(
+            ["tier", "n", "wins", "rate"],
+            rows,
+            align=["l", "r", "r", "r"],
+        )
+    )
     buf.write("\n\n")
 
     by_kind = report["by_source"]["by_kind"]
     if by_kind:
         buf.write("by source kind\n")
-        rows = [
-            [r["kind"], str(r["n"]), str(r["wins"]), _fmt_pct(r["win_rate"])]
-            for r in by_kind
-        ]
-        buf.write(_ascii_table(
-            ["kind", "n", "wins", "rate"],
-            rows,
-            align=["l", "r", "r", "r"],
-        ))
+        rows = [[r["kind"], str(r["n"]), str(r["wins"]), _fmt_pct(r["win_rate"])] for r in by_kind]
+        buf.write(
+            _ascii_table(
+                ["kind", "n", "wins", "rate"],
+                rows,
+                align=["l", "r", "r", "r"],
+            )
+        )
         buf.write("\n\n")
 
     by_src = report["by_source"]["by_source"]
     if by_src:
         buf.write("by source\n")
         rows = [
-            [r["source"], r["kind"], str(r["n"]), str(r["wins"]),
-             _fmt_pct(r["win_rate"])]
+            [r["source"], r["kind"], str(r["n"]), str(r["wins"]), _fmt_pct(r["win_rate"])]
             for r in by_src
         ]
-        buf.write(_ascii_table(
-            ["source", "kind", "n", "wins", "rate"],
-            rows,
-            align=["l", "l", "r", "r", "r"],
-        ))
+        buf.write(
+            _ascii_table(
+                ["source", "kind", "n", "wins", "rate"],
+                rows,
+                align=["l", "l", "r", "r", "r"],
+            )
+        )
         buf.write("\n\n")
 
     usage = report.get("usage", {})
     if usage:
         buf.write("token usage (sum across all outcomes that recorded it)\n")
         rows = sorted(usage.items(), key=lambda kv: -kv[1])
-        buf.write(_ascii_table(
-            ["field", "tokens"],
-            [[k, f"{v:,}"] for k, v in rows],
-            align=["l", "r"],
-        ))
+        buf.write(
+            _ascii_table(
+                ["field", "tokens"],
+                [[k, f"{v:,}"] for k, v in rows],
+                align=["l", "r"],
+            )
+        )
         buf.write("\n\n")
 
     if report.get("per_puzzle"):
         buf.write("per puzzle\n")
         rows = []
         for o in report["per_puzzle"]:
-            rows.append([
-                o["instance_id"],
-                o["run_name"],
-                o["status"],
-                str(o.get("complexity_tier", "?")),
-                o.get("source", "?") or "?",
-                str(o.get("tool_calls_used", "-")),
-            ])
-        buf.write(_ascii_table(
-            ["puzzle", "run", "status", "tier", "source", "tool_calls"],
-            rows,
-            align=["l", "l", "l", "r", "l", "r"],
-        ))
+            rows.append(
+                [
+                    o["instance_id"],
+                    o["run_name"],
+                    o["status"],
+                    str(o.get("complexity_tier", "?")),
+                    o.get("source", "?") or "?",
+                    str(o.get("tool_calls_used", "-")),
+                ]
+            )
+        buf.write(
+            _ascii_table(
+                ["puzzle", "run", "status", "tier", "source", "tool_calls"],
+                rows,
+                align=["l", "l", "l", "r", "l", "r"],
+            )
+        )
         buf.write("\n")
 
     return buf.getvalue()
@@ -642,24 +658,24 @@ def render_md(report: dict) -> str:
     buf.write("## By complexity tier\n\n")
     buf.write("| tier | n | wins | rate |\n|---|---:|---:|---:|\n")
     for r in report["by_complexity"]:
-        buf.write(f"| {r['tier']} | {r['n']} | {r['wins']} | "
-                  f"{_fmt_pct(r['win_rate'])} |\n")
+        buf.write(f"| {r['tier']} | {r['n']} | {r['wins']} | {_fmt_pct(r['win_rate'])} |\n")
     buf.write("\n")
 
     if report["by_source"]["by_kind"]:
         buf.write("## By source kind\n\n")
         buf.write("| kind | n | wins | rate |\n|---|---:|---:|---:|\n")
         for r in report["by_source"]["by_kind"]:
-            buf.write(f"| {r['kind']} | {r['n']} | {r['wins']} | "
-                      f"{_fmt_pct(r['win_rate'])} |\n")
+            buf.write(f"| {r['kind']} | {r['n']} | {r['wins']} | {_fmt_pct(r['win_rate'])} |\n")
         buf.write("\n")
 
     if report["by_source"]["by_source"]:
         buf.write("## By source\n\n")
         buf.write("| source | kind | n | wins | rate |\n|---|---|---:|---:|---:|\n")
         for r in report["by_source"]["by_source"]:
-            buf.write(f"| {r['source']} | {r['kind']} | {r['n']} | "
-                      f"{r['wins']} | {_fmt_pct(r['win_rate'])} |\n")
+            buf.write(
+                f"| {r['source']} | {r['kind']} | {r['n']} | "
+                f"{r['wins']} | {_fmt_pct(r['win_rate'])} |\n"
+            )
         buf.write("\n")
 
     if report.get("usage"):
@@ -693,9 +709,17 @@ def render_csv(report: dict) -> str:
     if not report.get("per_puzzle"):
         return ""
     fields = [
-        "instance_id", "run_name", "status", "termination", "winner",
-        "complexity_tier", "source", "source_kind", "tool_calls_used",
-        "objective", "has_gold_solution",
+        "instance_id",
+        "run_name",
+        "status",
+        "termination",
+        "winner",
+        "complexity_tier",
+        "source",
+        "source_kind",
+        "tool_calls_used",
+        "objective",
+        "has_gold_solution",
     ]
     buf = io.StringIO()
     w = csv.DictWriter(buf, fieldnames=fields, extrasaction="ignore")
@@ -737,8 +761,7 @@ def build_report(
                 "objective": o.objective,
                 "has_gold_solution": o.has_gold_solution,
             }
-            for o in sorted(outcomes,
-                            key=lambda x: (x.run_name, x.instance_id))
+            for o in sorted(outcomes, key=lambda x: (x.run_name, x.instance_id))
         ]
     return report
 
@@ -751,8 +774,7 @@ def main(argv: list[str] | None = None) -> int:
         "runs",
         nargs="+",
         type=Path,
-        help="One or more results/<run-name> directories. Globs are "
-             "expanded by the shell.",
+        help="One or more results/<run-name> directories. Globs are expanded by the shell.",
     )
     ap.add_argument(
         "--dataset",
@@ -775,8 +797,8 @@ def main(argv: list[str] | None = None) -> int:
         "--strict",
         action="store_true",
         help="Cross-validate the derived classification against any "
-             "recorded `outcome` row in each trace. Mismatches are "
-             "printed to stderr and the exit code is 1 if any are found.",
+        "recorded `outcome` row in each trace. Mismatches are "
+        "printed to stderr and the exit code is 1 if any are found.",
     )
     ap.add_argument(
         "--output",
@@ -806,14 +828,14 @@ def main(argv: list[str] | None = None) -> int:
     dataset_meta = load_dataset_metadata(args.dataset)
     outcomes = collect_outcomes(runs_dirs, dataset_meta)
     if not outcomes:
-        print(f"WARNING: no per-puzzle JSONL files found under "
-              f"{[str(r) for r in runs_dirs]}", file=sys.stderr)
+        print(
+            f"WARNING: no per-puzzle JSONL files found under {[str(r) for r in runs_dirs]}",
+            file=sys.stderr,
+        )
 
     # CSV format implies per-puzzle.
     per_puzzle = args.per_puzzle or args.format == "csv"
-    report = build_report(outcomes,
-                          runs=[str(r) for r in runs_dirs],
-                          per_puzzle=per_puzzle)
+    report = build_report(outcomes, runs=[str(r) for r in runs_dirs], per_puzzle=per_puzzle)
 
     renderers = {
         "text": render_text,
@@ -831,14 +853,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.strict:
         mismatches = [o for o in outcomes if o.has_recorded_mismatch]
         if mismatches:
-            print(f"\n--strict: {len(mismatches)} recorded-vs-derived "
-                  f"mismatch(es):", file=sys.stderr)
+            print(
+                f"\n--strict: {len(mismatches)} recorded-vs-derived mismatch(es):", file=sys.stderr
+            )
             for o in mismatches:
-                print(f"  {o.instance_id} ({o.run_name}): "
-                      f"recorded={o.recorded_status} "
-                      f"(winner={o.recorded_winner}) "
-                      f"-> derived={o.derived_status} "
-                      f"(winner={o.derived_winner})", file=sys.stderr)
+                print(
+                    f"  {o.instance_id} ({o.run_name}): "
+                    f"recorded={o.recorded_status} "
+                    f"(winner={o.recorded_winner}) "
+                    f"-> derived={o.derived_status} "
+                    f"(winner={o.derived_winner})",
+                    file=sys.stderr,
+                )
             return 1
     return 0
 

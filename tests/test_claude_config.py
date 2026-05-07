@@ -21,6 +21,7 @@ structure:
 No docker / podman / claude / engine needed.  Pure-bash + python +
 json + a 4-line stub.  Skipped if the claude/ subfolder is missing.
 """
+
 from __future__ import annotations
 
 import json
@@ -31,7 +32,6 @@ from pathlib import Path
 
 import pytest
 
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PREP = _REPO_ROOT / "agent-mcp-eval" / "claude" / "prep-session.sh"
 _DATASET = _REPO_ROOT / "data" / "yugioh_bench.jsonl"
@@ -39,11 +39,13 @@ _DATASET = _REPO_ROOT / "data" / "yugioh_bench.jsonl"
 
 def _stub_docker(tmp_path: Path) -> Path:
     stub = tmp_path / "fake-docker"
-    stub.write_text(textwrap.dedent("""\
+    stub.write_text(
+        textwrap.dedent("""\
         #!/usr/bin/env bash
         # Stub docker for tests.  Any invocation exits 0 with no output.
         exit 0
-    """))
+    """)
+    )
     stub.chmod(0o755)
     return stub
 
@@ -75,7 +77,10 @@ def workspace(tmp_path_factory) -> Path:
 
     proc = subprocess.run(
         ["bash", str(_PREP), puzzle],
-        capture_output=True, text=True, env=env, timeout=60,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=60,
     )
     assert proc.returncode == 0, (
         f"prep-session.sh failed: rc={proc.returncode}\n"
@@ -106,6 +111,7 @@ def mcp_config(workspace: Path) -> dict:
 # Top-level lockdown knobs
 # ---------------------------------------------------------------------------
 
+
 def test_top_level_scalars(settings: dict):
     """The 5 documented top-level keys (4 booleans + 1 string)
     that complement the permissions / env blocks."""
@@ -119,6 +125,7 @@ def test_top_level_scalars(settings: dict):
 # ---------------------------------------------------------------------------
 # Permissions block
 # ---------------------------------------------------------------------------
+
 
 def test_permissions_default_mode_is_dontAsk(settings: dict):
     """`dontAsk` is the right semantic for benchmark lockdown — auto-
@@ -146,11 +153,20 @@ def test_permissions_deny_dangerous_builtins(settings: dict):
     a future loosening is loud."""
     deny = set(settings["permissions"]["deny"])
     expected = {
-        "Bash", "BashOutput", "KillShell",
-        "Read", "Write", "Edit", "MultiEdit", "NotebookEdit",
-        "Glob", "Grep",
-        "Task", "Agent",
-        "WebFetch", "WebSearch",
+        "Bash",
+        "BashOutput",
+        "KillShell",
+        "Read",
+        "Write",
+        "Edit",
+        "MultiEdit",
+        "NotebookEdit",
+        "Glob",
+        "Grep",
+        "Task",
+        "Agent",
+        "WebFetch",
+        "WebSearch",
         "TodoWrite",
         "PowerShell",
     }
@@ -160,6 +176,7 @@ def test_permissions_deny_dangerous_builtins(settings: dict):
 # ---------------------------------------------------------------------------
 # env block — telemetry / ephemeral / compact
 # ---------------------------------------------------------------------------
+
 
 def test_env_disables_nonessential_traffic(settings: dict):
     """Single env var that sets DISABLE_AUTOUPDATER + DISABLE_FEEDBACK_
@@ -251,7 +268,10 @@ def test_oauth_token_baked_when_present(tmp_path_factory):
     env["CLAUDE_CODE_OAUTH_TOKEN"] = "sentinel-oauth-token-12345"
     proc = subprocess.run(
         ["bash", str(_PREP), puzzle],
-        capture_output=True, text=True, env=env, timeout=60,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=60,
     )
     assert proc.returncode == 0
     workspaces = [w for w in runs_root.iterdir() if w.is_dir()]
@@ -259,8 +279,7 @@ def test_oauth_token_baked_when_present(tmp_path_factory):
     ws = workspaces[0]
     settings_with_oauth = json.loads((ws / ".claude" / "settings.json").read_text())
     assert (
-        settings_with_oauth["env"].get("CLAUDE_CODE_OAUTH_TOKEN")
-        == "sentinel-oauth-token-12345"
+        settings_with_oauth["env"].get("CLAUDE_CODE_OAUTH_TOKEN") == "sentinel-oauth-token-12345"
     ), "CLAUDE_CODE_OAUTH_TOKEN should be baked into the workspace settings.json env"
     # And the auth-detection note should appear in stdout.
     assert "CLAUDE_CODE_OAUTH_TOKEN baked" in proc.stdout
@@ -269,6 +288,7 @@ def test_oauth_token_baked_when_present(tmp_path_factory):
 # ---------------------------------------------------------------------------
 # Top-level hardening that's NOT in settings.json (CLI-flag enforced)
 # ---------------------------------------------------------------------------
+
 
 def test_settings_does_not_set_dangerous_keys(settings: dict):
     """Defence-in-depth: certain keys would undo the lockdown if
@@ -281,6 +301,7 @@ def test_settings_does_not_set_dangerous_keys(settings: dict):
 # ---------------------------------------------------------------------------
 # .mcp.json shape — yugi-bench server with --network none
 # ---------------------------------------------------------------------------
+
 
 def test_mcp_yugi_bench_present(mcp_config: dict):
     assert "yugi-bench" in mcp_config["mcpServers"]

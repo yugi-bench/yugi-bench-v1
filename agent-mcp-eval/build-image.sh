@@ -3,8 +3,11 @@
 # machine with just Docker installed).
 #
 # Uses the multi-stage self-contained Dockerfile under
-# agent-mcp-eval/Dockerfile — no pre-staged vendor/
-# directory required, no premake5 / g++ on the host.
+# agent-mcp-eval/Dockerfile — no pre-staged vendor/ or data/ required,
+# no premake5 / g++ on the host.  The Dockerfile clones libocgcore,
+# BabelCDB, CardScripts, and ProjectIgnis/Puzzles inside the build,
+# then materialises data/yugioh_bench.jsonl in a Python stage so the
+# runtime image is fully self-contained.
 #
 # Usage:
 #   ./agent-mcp-eval/build-image.sh                    # tag yugi-bench-env:latest
@@ -36,25 +39,10 @@ if [ ! -f "$DOCKERFILE" ]; then
     exit 1
 fi
 
-if [ ! -f "$REPO_ROOT/data/yugioh_bench.jsonl" ]; then
-    cat >&2 <<EOF
-[build-image] ERROR: data/yugioh_bench.jsonl is missing.
-
-Nothing Konami-derived ships from this repo, so the dataset has to be
-built locally before the image can copy it in.  Run:
-
-    ./setup.sh
-
-This populates vendor/ (libocgcore + BabelCDB + CardScripts +
-ProjectIgnis/Puzzles) and produces data/yugioh_bench.jsonl from the
-upstream Puzzles clone.  Then re-run this script.
-EOF
-    exit 1
-fi
-
 echo "[build-image] $DOCKER build → $TAG (via $DOCKERFILE)"
-echo "[build-image] this clones + compiles libocgcore inside the build,"
-echo "[build-image] takes ~3-5 min on first run, sub-second after layer cache."
+echo "[build-image] this clones + compiles libocgcore + builds the lean"
+echo "[build-image] dataset inside the image; takes ~3-5 min on first run,"
+echo "[build-image] sub-second after layer cache."
 echo
 
 cd "$REPO_ROOT"

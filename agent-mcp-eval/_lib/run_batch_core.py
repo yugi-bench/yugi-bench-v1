@@ -33,6 +33,7 @@ container (``--rm`` cleans up on exit).  Pre-flight pauses apply
 globally — when one worker observes a rate-limit hit, all workers
 sleep until the window resets.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -47,13 +48,11 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import CancelledError, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from concurrent.futures import CancelledError, ThreadPoolExecutor, as_completed
 
-DEFAULT_RUNS_ROOT = os.environ.get("YUGI_RUNS_ROOT") or str(
-    Path.home() / "yugi-bench-runs"
-)
+DEFAULT_RUNS_ROOT = os.environ.get("YUGI_RUNS_ROOT") or str(Path.home() / "yugi-bench-runs")
 
 ANTHROPIC_USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
 ANTHROPIC_OAUTH_BETA = "oauth-2025-04-20"
@@ -214,18 +213,24 @@ def discover_workspaces(runs_root: Path, agent: str) -> list[WorkspaceState]:
         launcher = ws / f"run-{agent}-exec.sh"
         out.append(
             WorkspaceState(
-                workspace=ws, metadata=meta, puzzle_id=pid,
-                agent=agent, jsonl=jsonl, launcher=launcher,
+                workspace=ws,
+                metadata=meta,
+                puzzle_id=pid,
+                agent=agent,
+                jsonl=jsonl,
+                launcher=launcher,
             )
         )
 
     # Sort: verified-tier (0=verified first, 1=rest), complexity ascending,
     # puzzle_id (= content hash, stable tie-break), then workspace dir name
     # so multiple workspaces for the same puzzle keep deterministic order.
-    out.sort(key=lambda w: (
-        prio.get(w.puzzle_id, (2, 99, w.puzzle_id)),  # unknown puzzles last
-        w.workspace.name,
-    ))
+    out.sort(
+        key=lambda w: (
+            prio.get(w.puzzle_id, (2, 99, w.puzzle_id)),  # unknown puzzles last
+            w.workspace.name,
+        )
+    )
     return out
 
 
@@ -233,13 +238,14 @@ def discover_workspaces(runs_root: Path, agent: str) -> list[WorkspaceState]:
 # Usage-probe helpers — agent-specific endpoints, normalised output shape
 # ---------------------------------------------------------------------------
 
+
 def _parse_iso8601_to_dt(s: str) -> dt.datetime | None:
     if not s:
         return None
     try:
         if s.endswith("Z"):
             s = s[:-1] + "+00:00"
-        return dt.datetime.fromisoformat(s).astimezone(dt.timezone.utc)
+        return dt.datetime.fromisoformat(s).astimezone(dt.UTC)
     except Exception:
         return None
 
@@ -328,7 +334,7 @@ def fetch_codex_usage() -> dict | None:
     def _epoch_to_iso(epoch: object) -> str:
         try:
             ep = float(epoch)
-            return dt.datetime.fromtimestamp(ep, dt.timezone.utc).isoformat()
+            return dt.datetime.fromtimestamp(ep, dt.UTC).isoformat()
         except Exception:
             return ""
 
@@ -362,7 +368,7 @@ def usage_preflight_pause_seconds(
 ) -> tuple[float, str] | None:
     """If either window has crossed its stop threshold, return
     (pause_seconds, reason).  Otherwise return None."""
-    now_utc = dt.datetime.now(dt.timezone.utc)
+    now_utc = dt.datetime.now(dt.UTC)
     for key, stop_pct in (
         ("five_hour", five_hour_stop_used_pct),
         ("seven_day", seven_day_stop_used_pct),
@@ -452,10 +458,7 @@ def detect_rate_limit(stdout: str, stderr: str) -> bool:
             if RATE_LIMIT_RE.search(result_text):
                 return True
     # Stage 2: regex fallback on the non-JSON portion + stderr
-    cleaned_lines = [
-        line for i, line in enumerate(stdout.splitlines())
-        if i not in json_lines
-    ]
+    cleaned_lines = [line for i, line in enumerate(stdout.splitlines()) if i not in json_lines]
     cleaned = "\n".join(cleaned_lines) + "\n" + stderr
     return bool(RATE_LIMIT_RE.search(cleaned))
 
@@ -474,6 +477,7 @@ def detect_rate_limit(stdout: str, stderr: str) -> bool:
 # JSON, the run errored before any usage event, or the schema changed
 # beyond what this parser knows about).  Non-regressive: callers print
 # the run line without tokens when this returns None.
+
 
 def _find_usage_dict(obj) -> dict | None:
     """Locate a dict that looks like an LLM usage record inside an event."""
@@ -504,10 +508,7 @@ def _coalesce_input_tokens(u: dict) -> int | None:
             break
     if base is None:
         return None
-    extra = sum(
-        int(u[k]) for k in cache_keys
-        if isinstance(u.get(k), (int, float))
-    )
+    extra = sum(int(u[k]) for k in cache_keys if isinstance(u.get(k), (int, float)))
     return base + extra
 
 
@@ -559,9 +560,11 @@ def extract_usage_from_log(stdout: str) -> dict | None:
 # Run-batch: shared state + worker
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class BatchState:
     """Shared-across-workers coordination for concurrent run-batch."""
+
     agent: str
     args: argparse.Namespace
     pause_until: float = 0.0  # epoch seconds; workers sleep past this
@@ -590,8 +593,7 @@ class BatchState:
             if new_until > self.pause_until:
                 self.pause_until = new_until
                 print(
-                    f"[{self.agent}/run-batch] global pause "
-                    f"({seconds:.0f}s): {reason}",
+                    f"[{self.agent}/run-batch] global pause ({seconds:.0f}s): {reason}",
                     flush=True,
                 )
 
@@ -696,20 +698,29 @@ def run_one(state: WorkspaceState, timeout_s: int) -> tuple[bool, bool, str, str
         usage = extract_usage_from_log(so)
         if state.has_outcome:
             return (
-                True, False,
+                True,
+                False,
                 f"timeout after {timeout_s}s, outcome event present",
-                so, se, usage,
+                so,
+                se,
+                usage,
             )
         return (
-            False, False,
+            False,
+            False,
             f"timeout after {timeout_s}s",
-            so, se, usage,
+            so,
+            se,
+            usage,
         )
     except (FileNotFoundError, PermissionError, NotADirectoryError) as e:
         return (
-            False, False,
+            False,
+            False,
             f"launcher unrunnable: {type(e).__name__}: {e}",
-            "", "", None,
+            "",
+            "",
+            None,
         )
     except Exception as e:
         # Defensive catch-all so a single broken workspace can't kill
@@ -717,17 +728,41 @@ def run_one(state: WorkspaceState, timeout_s: int) -> tuple[bool, bool, str, str
         # be noise across N concurrent workers and is reproducible by
         # running the launcher manually.
         return (
-            False, False,
+            False,
+            False,
             f"launcher error: {type(e).__name__}: {e}",
-            "", "", None,
+            "",
+            "",
+            None,
         )
     rate_limited = detect_rate_limit(proc.stdout or "", proc.stderr or "")
     usage = extract_usage_from_log(proc.stdout or "")
     if rate_limited:
-        return False, True, f"rate-limited (exit={proc.returncode})", proc.stdout, proc.stderr, usage
+        return (
+            False,
+            True,
+            f"rate-limited (exit={proc.returncode})",
+            proc.stdout,
+            proc.stderr,
+            usage,
+        )
     if state.has_outcome:
-        return True, False, f"exit={proc.returncode}, outcome event present", proc.stdout, proc.stderr, usage
-    return False, False, f"exit={proc.returncode}, no outcome event", proc.stdout, proc.stderr, usage
+        return (
+            True,
+            False,
+            f"exit={proc.returncode}, outcome event present",
+            proc.stdout,
+            proc.stderr,
+            usage,
+        )
+    return (
+        False,
+        False,
+        f"exit={proc.returncode}, no outcome event",
+        proc.stdout,
+        proc.stderr,
+        usage,
+    )
 
 
 def process_workspace(idx: int, total: int, w: WorkspaceState, batch: BatchState) -> None:
@@ -772,8 +807,7 @@ def _process_workspace_inner(idx: int, total: int, w: WorkspaceState, batch: Bat
         )
         elapsed = time.time() - t0
         usage_suffix = (
-            f", in={usage['in']} out={usage['out']} tot={usage['total']}"
-            if usage else ""
+            f", in={usage['in']} out={usage['out']} tot={usage['total']}" if usage else ""
         )
 
         if rate_limited:
@@ -816,8 +850,7 @@ def _process_workspace_inner(idx: int, total: int, w: WorkspaceState, batch: Bat
                 batch.fail += 1
         if ok:
             print(
-                f"  [{idx}/{total}] {w.puzzle_id} DONE "
-                f"({elapsed:.0f}s, {summary}{usage_suffix})",
+                f"  [{idx}/{total}] {w.puzzle_id} DONE ({elapsed:.0f}s, {summary}{usage_suffix})",
                 flush=True,
             )
         else:
@@ -849,9 +882,11 @@ def main(agent: str, argv: list[str] | None = None) -> int:
         "--concurrency",
         type=int,
         default=1,
-        help=("Max concurrent sessions (default 1 = sequential).  Each "
-              "session spawns its own MCP container; memory + CPU "
-              "scale linearly.  Quota burns N× faster too."),
+        help=(
+            "Max concurrent sessions (default 1 = sequential).  Each "
+            "session spawns its own MCP container; memory + CPU "
+            "scale linearly.  Quota burns N× faster too."
+        ),
     )
     ap.add_argument(
         "--per-session-timeout-seconds",
@@ -863,75 +898,85 @@ def main(agent: str, argv: list[str] | None = None) -> int:
         "--rate-limit-pause-seconds",
         type=int,
         default=3600,
-        help=("Cap on pause duration (default 3600s = 1h).  Used both "
-              "for the pre-flight 'sleep until reset' (capped) and for "
-              "the post-flight 429-detected pause."),
+        help=(
+            "Cap on pause duration (default 3600s = 1h).  Used both "
+            "for the pre-flight 'sleep until reset' (capped) and for "
+            "the post-flight 429-detected pause."
+        ),
     )
     ap.add_argument(
         "--max-rate-limit-retries",
         type=int,
         default=5,
-        help=("Bail if rate-limit fires this many times in a row across "
-              "all workers without a successful session in between.  "
-              "Default 5 = ~5h of waiting before giving up."),
+        help=(
+            "Bail if rate-limit fires this many times in a row across "
+            "all workers without a successful session in between.  "
+            "Default 5 = ~5h of waiting before giving up."
+        ),
     )
     ap.add_argument(
         "--five-hour-stop-pct",
         type=float,
         default=80.0,
-        help=("Pause-and-wait when 5-hour utilization crosses this "
-              "(default 80%% = 20%% headroom)."),
+        help=(
+            "Pause-and-wait when 5-hour utilization crosses this (default 80%% = 20%% headroom)."
+        ),
     )
     ap.add_argument(
         "--seven-day-stop-pct",
         type=float,
         default=95.0,
-        help=("Pause-and-wait when 7-day utilization crosses this "
-              "(default 95%% = 5%% headroom)."),
+        help=("Pause-and-wait when 7-day utilization crosses this (default 95%% = 5%% headroom)."),
     )
     ap.add_argument(
         "--no-preflight",
         action="store_true",
-        help=("Skip the pre-flight usage probe; rely only on post-"
-              "flight 429 detection."),
+        help=("Skip the pre-flight usage probe; rely only on post-flight 429 detection."),
     )
     ap.add_argument(
         "--dry-run",
         action="store_true",
-        help=("Discover and print workspaces without running anything.  "
-              "Also probes + reports current usage if available."),
+        help=(
+            "Discover and print workspaces without running anything.  "
+            "Also probes + reports current usage if available."
+        ),
     )
     ap.add_argument(
         "--limit",
         type=int,
         default=None,
-        help=("Cap the number of workspaces to process this invocation "
-              "(applied AFTER --offset / --only / --puzzle-ids).  "
-              "Idempotent skipping of already-done workspaces still "
-              "applies, so re-invoking continues from where the previous "
-              "limit stopped."),
+        help=(
+            "Cap the number of workspaces to process this invocation "
+            "(applied AFTER --offset / --only / --puzzle-ids).  "
+            "Idempotent skipping of already-done workspaces still "
+            "applies, so re-invoking continues from where the previous "
+            "limit stopped."
+        ),
     )
     ap.add_argument(
         "--offset",
         type=int,
         default=0,
-        help=("Skip the first N pending workspaces before processing "
-              "(applied AFTER --only / --puzzle-ids, BEFORE --limit)."),
+        help=(
+            "Skip the first N pending workspaces before processing "
+            "(applied AFTER --only / --puzzle-ids, BEFORE --limit)."
+        ),
     )
     ap.add_argument(
         "--only",
         type=str,
         default=None,
-        help=("Only process workspaces for this single puzzle_id.  "
-              "Matches via metadata.json's puzzle_id field, so "
-              "timestamped workspace dir suffixes don't interfere."),
+        help=(
+            "Only process workspaces for this single puzzle_id.  "
+            "Matches via metadata.json's puzzle_id field, so "
+            "timestamped workspace dir suffixes don't interfere."
+        ),
     )
     ap.add_argument(
         "--puzzle-ids",
         type=str,
         default=None,
-        help=("Comma-separated list of puzzle_ids to process.  Like "
-              "--only but for multiple ids."),
+        help=("Comma-separated list of puzzle_ids to process.  Like --only but for multiple ids."),
     )
     args = ap.parse_args(argv)
 
@@ -994,7 +1039,7 @@ def main(agent: str, argv: list[str] | None = None) -> int:
             targets.update(s.strip() for s in args.puzzle_ids.split(",") if s.strip())
         pending = [w for w in pending if w.puzzle_id in targets]
     if args.offset > 0:
-        pending = pending[args.offset:]
+        pending = pending[args.offset :]
     if args.limit is not None and args.limit >= 0:
         pending = pending[: args.limit]
 
@@ -1084,7 +1129,7 @@ def main(agent: str, argv: list[str] | None = None) -> int:
         f"concurrency={concurrency} total={total:.0f}s ({total / 60:.1f}min)"
     )
     print(
-        "[{0}/run-batch] aggregate with: {1}".format(
+        "[{}/run-batch] aggregate with: {}".format(
             agent,
             Path(__file__).resolve().parent.parent / "aggregate-results.py",
         )

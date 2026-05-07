@@ -20,6 +20,7 @@ with each slot either a u16(0) empty-marker or a full card block.
 A field query is its own beast: duel_options + two player structs
 + chain summary.
 """
+
 from __future__ import annotations
 
 import struct
@@ -28,20 +29,29 @@ import pytest
 
 import engine.core as engine
 from engine.core import (
-    _parse_query_response,
-    _parse_query_location_response,
     _parse_query_field_response,
+    _parse_query_location_response,
+    _parse_query_response,
 )
 
 
 # ---------------------------------------------------------------------------
 # Builders
 # ---------------------------------------------------------------------------
-def u16(v: int) -> bytes: return struct.pack("<H", v)
+def u16(v: int) -> bytes:
+    return struct.pack("<H", v)
+
+
 def u32(v: int, signed: bool = False) -> bytes:
     return struct.pack("<i" if signed else "<I", v)
-def u64(v: int) -> bytes: return struct.pack("<Q", v)
-def u8(v: int) -> bytes: return struct.pack("<B", v)
+
+
+def u64(v: int) -> bytes:
+    return struct.pack("<Q", v)
+
+
+def u8(v: int) -> bytes:
+    return struct.pack("<B", v)
 
 
 def _field(flag: int, payload: bytes) -> bytes:
@@ -62,36 +72,47 @@ def loc_info(con: int, loc: int, seq: int, pos: int) -> bytes:
 # ---------------------------------------------------------------------------
 # Fixed-width QUERY_* flags — one-field-per-test keeps failures surgical.
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize("flag,key,payload,expected", [
-    (engine.QUERY_CODE,          "code",          u32(0x00004ce5), 0x00004ce5),
-    (engine.QUERY_POSITION,      "position",      u32(engine.POS_FACEUP_ATTACK),
-                                                    engine.POS_FACEUP_ATTACK),
-    (engine.QUERY_ALIAS,         "alias",         u32(0x12345),    0x12345),
-    (engine.QUERY_TYPE,          "type",          u32(engine.TYPE_MONSTER | engine.TYPE_EFFECT),
-                                                    engine.TYPE_MONSTER | engine.TYPE_EFFECT),
-    (engine.QUERY_LEVEL,         "level",         u32(4),          4),
-    (engine.QUERY_RANK,          "rank",          u32(7),          7),
-    (engine.QUERY_ATTRIBUTE,     "attribute",     u32(engine.ATTRIBUTE_DARK),
-                                                    engine.ATTRIBUTE_DARK),
-    (engine.QUERY_RACE,          "race",          u64(engine.RACE_WARRIOR),
-                                                    engine.RACE_WARRIOR),
-    (engine.QUERY_ATTACK,        "attack",        u32(2500),       2500),
-    (engine.QUERY_DEFENSE,       "defense",       u32(2000),       2000),
-    (engine.QUERY_BASE_ATTACK,   "base_attack",   u32(1800),       1800),
-    (engine.QUERY_BASE_DEFENSE,  "base_defense",  u32(1200),       1200),
-    (engine.QUERY_REASON,        "reason",        u32(engine.REASON_EFFECT),
-                                                    engine.REASON_EFFECT),
-    (engine.QUERY_OWNER,         "owner",         u8(1),           1),
-    (engine.QUERY_STATUS,        "status",        u32(engine.STATUS_EFFECT_ENABLED),
-                                                    engine.STATUS_EFFECT_ENABLED),
-    (engine.QUERY_IS_PUBLIC,     "is_public",     u8(1),           1),
-    (engine.QUERY_LSCALE,        "lscale",        u32(4),          4),
-    (engine.QUERY_RSCALE,        "rscale",        u32(4),          4),
-    (engine.QUERY_IS_HIDDEN,     "is_hidden",     u8(0),           0),
-    (engine.QUERY_COVER,         "cover",         u32(0xdead),     0xdead),
-])
-def test_query_fixed_width_flag(flag: int, key: str,
-                                 payload: bytes, expected: int) -> None:
+@pytest.mark.parametrize(
+    "flag,key,payload,expected",
+    [
+        (engine.QUERY_CODE, "code", u32(0x00004CE5), 0x00004CE5),
+        (
+            engine.QUERY_POSITION,
+            "position",
+            u32(engine.POS_FACEUP_ATTACK),
+            engine.POS_FACEUP_ATTACK,
+        ),
+        (engine.QUERY_ALIAS, "alias", u32(0x12345), 0x12345),
+        (
+            engine.QUERY_TYPE,
+            "type",
+            u32(engine.TYPE_MONSTER | engine.TYPE_EFFECT),
+            engine.TYPE_MONSTER | engine.TYPE_EFFECT,
+        ),
+        (engine.QUERY_LEVEL, "level", u32(4), 4),
+        (engine.QUERY_RANK, "rank", u32(7), 7),
+        (engine.QUERY_ATTRIBUTE, "attribute", u32(engine.ATTRIBUTE_DARK), engine.ATTRIBUTE_DARK),
+        (engine.QUERY_RACE, "race", u64(engine.RACE_WARRIOR), engine.RACE_WARRIOR),
+        (engine.QUERY_ATTACK, "attack", u32(2500), 2500),
+        (engine.QUERY_DEFENSE, "defense", u32(2000), 2000),
+        (engine.QUERY_BASE_ATTACK, "base_attack", u32(1800), 1800),
+        (engine.QUERY_BASE_DEFENSE, "base_defense", u32(1200), 1200),
+        (engine.QUERY_REASON, "reason", u32(engine.REASON_EFFECT), engine.REASON_EFFECT),
+        (engine.QUERY_OWNER, "owner", u8(1), 1),
+        (
+            engine.QUERY_STATUS,
+            "status",
+            u32(engine.STATUS_EFFECT_ENABLED),
+            engine.STATUS_EFFECT_ENABLED,
+        ),
+        (engine.QUERY_IS_PUBLIC, "is_public", u8(1), 1),
+        (engine.QUERY_LSCALE, "lscale", u32(4), 4),
+        (engine.QUERY_RSCALE, "rscale", u32(4), 4),
+        (engine.QUERY_IS_HIDDEN, "is_hidden", u8(0), 0),
+        (engine.QUERY_COVER, "cover", u32(0xDEAD), 0xDEAD),
+    ],
+)
+def test_query_fixed_width_flag(flag: int, key: str, payload: bytes, expected: int) -> None:
     buf = _card([_field(flag, payload)])
     out = _parse_query_response(buf)
     assert out[key] == expected
@@ -99,10 +120,12 @@ def test_query_fixed_width_flag(flag: int, key: str,
 
 def test_query_attack_defense_signed() -> None:
     """ATK/DEF are signed — ``?`` (unknown) is emitted as -2."""
-    buf = _card([
-        _field(engine.QUERY_ATTACK, u32(-2, signed=True)),
-        _field(engine.QUERY_DEFENSE, u32(-1, signed=True)),
-    ])
+    buf = _card(
+        [
+            _field(engine.QUERY_ATTACK, u32(-2, signed=True)),
+            _field(engine.QUERY_DEFENSE, u32(-1, signed=True)),
+        ]
+    )
     out = _parse_query_response(buf)
     assert out["attack"] == -2
     assert out["defense"] == -1
@@ -116,8 +139,10 @@ def test_query_reason_card() -> None:
     buf = _card([_field(engine.QUERY_REASON_CARD, li)])
     out = _parse_query_response(buf)
     assert out["reason_card"] == {
-        "con": 0, "loc": engine.LOCATION_SZONE,
-        "seq": 3, "pos": engine.POS_FACEUP_ATTACK,
+        "con": 0,
+        "loc": engine.LOCATION_SZONE,
+        "seq": 3,
+        "pos": engine.POS_FACEUP_ATTACK,
     }
 
 
@@ -126,15 +151,19 @@ def test_query_equip_card() -> None:
     buf = _card([_field(engine.QUERY_EQUIP_CARD, li)])
     out = _parse_query_response(buf)
     assert out["equip_card"] == {
-        "con": 1, "loc": engine.LOCATION_MZONE,
-        "seq": 2, "pos": engine.POS_FACEUP_ATTACK,
+        "con": 1,
+        "loc": engine.LOCATION_MZONE,
+        "seq": 2,
+        "pos": engine.POS_FACEUP_ATTACK,
     }
 
 
 def test_query_target_card_multiple() -> None:
-    payload = u32(2) + loc_info(0, engine.LOCATION_MZONE, 0,
-                                  engine.POS_FACEUP_ATTACK) + \
-              loc_info(1, engine.LOCATION_MZONE, 2, engine.POS_FACEUP_ATTACK)
+    payload = (
+        u32(2)
+        + loc_info(0, engine.LOCATION_MZONE, 0, engine.POS_FACEUP_ATTACK)
+        + loc_info(1, engine.LOCATION_MZONE, 2, engine.POS_FACEUP_ATTACK)
+    )
     buf = _card([_field(engine.QUERY_TARGET_CARD, payload)])
     out = _parse_query_response(buf)
     assert len(out["targets"]) == 2
@@ -167,13 +196,11 @@ def test_query_counters() -> None:
 
 def test_query_link() -> None:
     """Link card: u32 link rating + u32 link-marker bitmask."""
-    payload = u32(4) + u32(engine.LINK_MARKER_BOTTOM_LEFT
-                            | engine.LINK_MARKER_BOTTOM_RIGHT)
+    payload = u32(4) + u32(engine.LINK_MARKER_BOTTOM_LEFT | engine.LINK_MARKER_BOTTOM_RIGHT)
     buf = _card([_field(engine.QUERY_LINK, payload)])
     out = _parse_query_response(buf)
     assert out["link"] == 4
-    assert out["link_markers"] == (engine.LINK_MARKER_BOTTOM_LEFT
-                                    | engine.LINK_MARKER_BOTTOM_RIGHT)
+    assert out["link_markers"] == (engine.LINK_MARKER_BOTTOM_LEFT | engine.LINK_MARKER_BOTTOM_RIGHT)
 
 
 # ---------------------------------------------------------------------------
@@ -181,21 +208,23 @@ def test_query_link() -> None:
 # ---------------------------------------------------------------------------
 def test_query_full_card_composite() -> None:
     """Realistic multi-field emission for a face-up attack monster."""
-    buf = _card([
-        _field(engine.QUERY_CODE, u32(0x00004ce5)),          # Dark Magician
-        _field(engine.QUERY_POSITION, u32(engine.POS_FACEUP_ATTACK)),
-        _field(engine.QUERY_ALIAS, u32(0)),
-        _field(engine.QUERY_TYPE, u32(engine.TYPE_MONSTER | engine.TYPE_EFFECT)),
-        _field(engine.QUERY_LEVEL, u32(7)),
-        _field(engine.QUERY_ATTRIBUTE, u32(engine.ATTRIBUTE_DARK)),
-        _field(engine.QUERY_RACE, u64(engine.RACE_SPELLCASTER)),
-        _field(engine.QUERY_ATTACK, u32(2500, signed=True)),
-        _field(engine.QUERY_DEFENSE, u32(2100, signed=True)),
-        _field(engine.QUERY_STATUS, u32(engine.STATUS_EFFECT_ENABLED)),
-        _field(engine.QUERY_OWNER, u8(0)),
-    ])
+    buf = _card(
+        [
+            _field(engine.QUERY_CODE, u32(0x00004CE5)),  # Dark Magician
+            _field(engine.QUERY_POSITION, u32(engine.POS_FACEUP_ATTACK)),
+            _field(engine.QUERY_ALIAS, u32(0)),
+            _field(engine.QUERY_TYPE, u32(engine.TYPE_MONSTER | engine.TYPE_EFFECT)),
+            _field(engine.QUERY_LEVEL, u32(7)),
+            _field(engine.QUERY_ATTRIBUTE, u32(engine.ATTRIBUTE_DARK)),
+            _field(engine.QUERY_RACE, u64(engine.RACE_SPELLCASTER)),
+            _field(engine.QUERY_ATTACK, u32(2500, signed=True)),
+            _field(engine.QUERY_DEFENSE, u32(2100, signed=True)),
+            _field(engine.QUERY_STATUS, u32(engine.STATUS_EFFECT_ENABLED)),
+            _field(engine.QUERY_OWNER, u8(0)),
+        ]
+    )
     out = _parse_query_response(buf)
-    assert out["code"] == 0x00004ce5
+    assert out["code"] == 0x00004CE5
     assert out["position"] == engine.POS_FACEUP_ATTACK
     assert out["type"] == engine.TYPE_MONSTER | engine.TYPE_EFFECT
     assert out["level"] == 7
@@ -208,9 +237,12 @@ def test_query_full_card_composite() -> None:
 
 def test_query_end_terminates_early() -> None:
     """QUERY_END stops parsing — trailing bytes must not leak into the result."""
-    buf = (_field(engine.QUERY_CODE, u32(0x1234))
-           + u16(4) + u32(engine.QUERY_END)
-           + b"\xff\xff\xff\xff")          # bytes past the terminator
+    buf = (
+        _field(engine.QUERY_CODE, u32(0x1234))
+        + u16(4)
+        + u32(engine.QUERY_END)
+        + b"\xff\xff\xff\xff"
+    )  # bytes past the terminator
     out = _parse_query_response(buf)
     assert out["code"] == 0x1234
     assert "_end_offset" in out
@@ -246,10 +278,12 @@ def test_query_location_empty_slots() -> None:
 
 
 def test_query_location_single_card() -> None:
-    card = _card([
-        _field(engine.QUERY_CODE, u32(0x4444)),
-        _field(engine.QUERY_POSITION, u32(engine.POS_FACEDOWN_DEFENSE)),
-    ])
+    card = _card(
+        [
+            _field(engine.QUERY_CODE, u32(0x4444)),
+            _field(engine.QUERY_POSITION, u32(engine.POS_FACEDOWN_DEFENSE)),
+        ]
+    )
     buf = u32(len(card)) + card
     out = _parse_query_location_response(buf)
     assert len(out) == 1
@@ -276,16 +310,28 @@ def _occupied_zone(pos: int, overlay_count: int) -> bytes:
     return u8(1) + u8(pos) + u32(overlay_count)
 
 
-def _player_snapshot(lp: int,
-                     mzone: list[bytes],
-                     szone: list[bytes],
-                     deck: int, hand: int, grave: int,
-                     removed: int, extra: int, extra_p: int) -> bytes:
-    return (u32(lp)
-            + b"".join(mzone)
-            + b"".join(szone)
-            + u32(deck) + u32(hand) + u32(grave)
-            + u32(removed) + u32(extra) + u32(extra_p))
+def _player_snapshot(
+    lp: int,
+    mzone: list[bytes],
+    szone: list[bytes],
+    deck: int,
+    hand: int,
+    grave: int,
+    removed: int,
+    extra: int,
+    extra_p: int,
+) -> bytes:
+    return (
+        u32(lp)
+        + b"".join(mzone)
+        + b"".join(szone)
+        + u32(deck)
+        + u32(hand)
+        + u32(grave)
+        + u32(removed)
+        + u32(extra)
+        + u32(extra_p)
+    )
 
 
 def test_query_field_response_basic() -> None:
@@ -332,23 +378,34 @@ def test_query_field_response_with_chain() -> None:
     p1 = _player_snapshot(8000, mz2, sz2, 40, 5, 0, 0, 15, 0)
 
     # One chain link. 4 (code) + 1+1+4+4 (info loc_info) + 1+1+4 (trg) + 8 (desc) = 28 bytes.
-    chain_entry = (u32(0x00004ce5)                               # code
-                   + u8(0) + u8(engine.LOCATION_MZONE) + u32(3) + u32(engine.POS_FACEUP_ATTACK)
-                   + u8(1) + u8(engine.LOCATION_MZONE) + u32(2)
-                   + u64(0xCAFEBABE))
+    chain_entry = (
+        u32(0x00004CE5)  # code
+        + u8(0)
+        + u8(engine.LOCATION_MZONE)
+        + u32(3)
+        + u32(engine.POS_FACEUP_ATTACK)
+        + u8(1)
+        + u8(engine.LOCATION_MZONE)
+        + u32(2)
+        + u64(0xCAFEBABE)
+    )
     chain = u32(1) + chain_entry
     buf = u32(0) + p0 + p1 + chain
 
     out = _parse_query_field_response(buf)
     assert len(out["chain"]) == 1
     link = out["chain"][0]
-    assert link["code"] == 0x00004ce5
+    assert link["code"] == 0x00004CE5
     assert link["effect_location"] == {
-        "con": 0, "loc": engine.LOCATION_MZONE,
-        "seq": 3, "pos": engine.POS_FACEUP_ATTACK,
+        "con": 0,
+        "loc": engine.LOCATION_MZONE,
+        "seq": 3,
+        "pos": engine.POS_FACEUP_ATTACK,
     }
     assert link["trigger_location"] == {
-        "con": 1, "loc": engine.LOCATION_MZONE, "seq": 2,
+        "con": 1,
+        "loc": engine.LOCATION_MZONE,
+        "seq": 2,
     }
     assert link["description"] == 0xCAFEBABE
 

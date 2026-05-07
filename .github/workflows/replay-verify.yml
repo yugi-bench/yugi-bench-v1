@@ -27,7 +27,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-              build-essential libstdc++-12-dev premake5
+              build-essential libstdc++-12-dev uuid-dev
+
+      - name: Build premake5 from source (Ubuntu 24.04+ dropped the apt package)
+        run: |
+          git clone --depth 1 --branch v5.0.0-beta7 \
+              https://github.com/premake/premake-core.git /tmp/premake-core
+          cd /tmp/premake-core
+          make -f Bootstrap.mak linux
+          sudo install -m 0755 bin/release/premake5 /usr/local/bin/premake5
+          premake5 --version
 
       - name: Bootstrap engine via setup.sh (no Python pip; replay needs only stdlib + libocgcore)
         run: ./setup.sh --skip-pip --no-verify

@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path as _Path
+
 _REPO_ROOT = _Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "src"))
@@ -48,49 +49,69 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from build_benchmark import (  # noqa: E402
-    CardDatabase, _default_cdb_dir, format_card_details, build_prompt,
+    CardDatabase,
+    _default_cdb_dir,
+    build_prompt,
+    format_card_details,
 )
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--input", type=Path,
-                    default=REPO_ROOT / "data" / "yugioh_bench.jsonl",
-                    help="Lean JSONL produced by build_benchmark.py --lean")
-    ap.add_argument("--output", type=Path,
-                    default=REPO_ROOT / "data" / "yugioh_bench.enriched.jsonl",
-                    help="Enriched JSONL with card_details + prompt restored")
-    ap.add_argument("--cdb-dir", type=Path, default=_default_cdb_dir(),
-                    help="Directory containing EDOPro card .cdb SQLite files "
-                         "(default: vendor/distribution/expansions, populated "
-                         "by setup.sh's BabelCDB clone)")
-    ap.add_argument("--no-prompt", action="store_true",
-                    help="Reconstruct card_details only; skip the rendered "
-                         "prompt (the runner can rebuild it on demand from "
-                         "card_details + game_state).")
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--input",
+        type=Path,
+        default=REPO_ROOT / "data" / "yugioh_bench.jsonl",
+        help="Lean JSONL produced by build_benchmark.py --lean",
+    )
+    ap.add_argument(
+        "--output",
+        type=Path,
+        default=REPO_ROOT / "data" / "yugioh_bench.enriched.jsonl",
+        help="Enriched JSONL with card_details + prompt restored",
+    )
+    ap.add_argument(
+        "--cdb-dir",
+        type=Path,
+        default=_default_cdb_dir(),
+        help="Directory containing EDOPro card .cdb SQLite files "
+        "(default: vendor/distribution/expansions, populated "
+        "by setup.sh's BabelCDB clone)",
+    )
+    ap.add_argument(
+        "--no-prompt",
+        action="store_true",
+        help="Reconstruct card_details only; skip the rendered "
+        "prompt (the runner can rebuild it on demand from "
+        "card_details + game_state).",
+    )
     args = ap.parse_args()
 
     if not args.input.exists():
         print(f"error: input {args.input} does not exist", file=sys.stderr)
         return 1
 
-    cdb_paths = [p for p in [
-        args.cdb_dir / "cards.cdb", args.cdb_dir / "cards-rush.cdb",
-        args.cdb_dir / "cards-unofficial.cdb",
-        args.cdb_dir / "cards-unofficial-new.cdb",
-        args.cdb_dir / "goat-entries.cdb", args.cdb_dir / "cards-skills.cdb",
-        args.cdb_dir / "cards-skills-unofficial.cdb",
-    ] if p.exists()]
+    cdb_paths = [
+        p
+        for p in [
+            args.cdb_dir / "cards.cdb",
+            args.cdb_dir / "cards-rush.cdb",
+            args.cdb_dir / "cards-unofficial.cdb",
+            args.cdb_dir / "cards-unofficial-new.cdb",
+            args.cdb_dir / "goat-entries.cdb",
+            args.cdb_dir / "cards-skills.cdb",
+            args.cdb_dir / "cards-skills-unofficial.cdb",
+        ]
+        if p.exists()
+    ]
     if not cdb_paths:
-        print(f"error: no card .cdb files found in {args.cdb_dir}",
-              file=sys.stderr)
-        print("hint: run setup.sh to populate vendor/distribution/expansions",
-              file=sys.stderr)
+        print(f"error: no card .cdb files found in {args.cdb_dir}", file=sys.stderr)
+        print("hint: run setup.sh to populate vendor/distribution/expansions", file=sys.stderr)
         return 1
     db = CardDatabase(cdb_paths)
-    print(f"Loaded {len(db._texts)} cards from {len(cdb_paths)} databases",
-          file=sys.stderr)
+    print(f"Loaded {len(db._texts)} cards from {len(cdb_paths)} databases", file=sys.stderr)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     n_enriched = 0
@@ -102,14 +123,15 @@ def main() -> int:
             inst["card_details"] = details
             if not args.no_prompt:
                 inst["prompt"] = build_prompt(
-                    inst["game_state"], details, inst["metadata"],
+                    inst["game_state"],
+                    details,
+                    inst["metadata"],
                     hints=[],  # hints are not stored in the lean JSONL
                 )
             fout.write(json.dumps(inst, ensure_ascii=False) + "\n")
             n_enriched += 1
 
-    print(f"Wrote {n_enriched} enriched instances to {args.output}",
-          file=sys.stderr)
+    print(f"Wrote {n_enriched} enriched instances to {args.output}", file=sys.stderr)
     return 0
 
 

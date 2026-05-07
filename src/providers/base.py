@@ -122,7 +122,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Type aliases for documentation clarity.  These aren't enforced by Python's
 # type system; they're hints to the implementer.
@@ -138,6 +137,7 @@ ToolSchema = dict[str, Any]
 # ---------------------------------------------------------------------------
 # LCD types — same across every provider.  Episode reads these.
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ToolCall:
@@ -156,6 +156,7 @@ class ToolCall:
     - ``arguments``: the parsed JSON arguments object.  Keys + types
       follow the tool's ``input_schema``.
     """
+
     id: str
     name: str
     arguments: dict[str, Any]
@@ -204,6 +205,7 @@ class ModelTurn:
       the signature on subsequent calls.  Episode doesn't know or
       care about thinking blocks; it just preserves the dict.
     """
+
     text: str = ""
     tool_calls: list[ToolCall] = field(default_factory=list)
     stop_reason: str = ""
@@ -230,6 +232,7 @@ class ModelTurn:
 # ---------------------------------------------------------------------------
 # The ABC every provider implements.
 # ---------------------------------------------------------------------------
+
 
 class ToolCallingProvider(ABC):
     """Abstract provider — implement this to add a new backend.

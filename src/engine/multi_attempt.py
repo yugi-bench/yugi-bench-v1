@@ -18,9 +18,10 @@ import argparse
 import json
 import sys
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any
 
 # Allow direct script invocation (`python src/engine/multi_attempt.py ...`)
 # by putting src/ on sys.path so internal `from engine.X import …` resolves
@@ -36,9 +37,7 @@ from engine.replay import (
     EvalResult,
     SingleAttemptEvaluator,
     load_dataset,
-    replay_solution,
 )
-
 
 ResubmitCallback = Callable[[int, EvalResult, dict | None], "list[dict] | None"]
 """Callback the caller supplies to produce a fresh action list after a failure.
@@ -104,13 +103,17 @@ class MultiAttemptEvaluator:
                 )
 
             result = self.inner.evaluate_one(
-                lua_setup, current_solution, perspective=perspective,
+                lua_setup,
+                current_solution,
+                perspective=perspective,
             )
-            per_attempt.append({
-                "attempt": attempt_idx + 1,
-                "solution_len": len(current_solution),
-                "result": result.to_dict(),
-            })
+            per_attempt.append(
+                {
+                    "attempt": attempt_idx + 1,
+                    "solution_len": len(current_solution),
+                    "result": result.to_dict(),
+                }
+            )
 
             if result.status == "win":
                 return MultiAttemptResult(
@@ -184,13 +187,25 @@ def main(argv: list[str] | None = None) -> int:
     """
     ap = argparse.ArgumentParser(description=main.__doc__.splitlines()[0])
     ap.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
-    ap.add_argument("--solutions", type=Path, required=True,
-                    help="Directory of <instance_id>.json bundles (a bundle is a "
-                         "JSON list whose elements are each a full action-list).")
-    ap.add_argument("--results", type=Path, default=None,
-                    help="Output path (default: results/<solutions-dir-name>.json)")
-    ap.add_argument("--only", action="append", default=None,
-                    help="Restrict to the given instance_id (repeatable)")
+    ap.add_argument(
+        "--solutions",
+        type=Path,
+        required=True,
+        help="Directory of <instance_id>.json bundles (a bundle is a "
+        "JSON list whose elements are each a full action-list).",
+    )
+    ap.add_argument(
+        "--results",
+        type=Path,
+        default=None,
+        help="Output path (default: results/<solutions-dir-name>.json)",
+    )
+    ap.add_argument(
+        "--only",
+        action="append",
+        default=None,
+        help="Restrict to the given instance_id (repeatable)",
+    )
     ap.add_argument("--perspective", type=int, default=0)
     ap.add_argument("--max-attempts", type=int, default=3)
     ap.add_argument("-v", "--verbose", action="store_true")
@@ -202,34 +217,47 @@ def main(argv: list[str] | None = None) -> int:
 
     evaluator = MultiAttemptEvaluator(max_attempts=args.max_attempts, verbose=args.verbose)
     per_instance: dict[str, dict] = {}
-    counts: dict[str, int] = {"win": 0, "loss": 0, "incomplete": 0,
-                              "error": 0, "gave_up": 0, "missing": 0}
+    counts: dict[str, int] = {
+        "win": 0,
+        "loss": 0,
+        "incomplete": 0,
+        "error": 0,
+        "gave_up": 0,
+        "missing": 0,
+    }
 
     for idx, (iid, inst) in enumerate(sorted(instances.items())):
         bundle_path = args.solutions / f"{iid}.json"
         if not bundle_path.exists():
             counts["missing"] += 1
             per_instance[iid] = {"status": "missing"}
-            print(f"[{idx+1}/{len(instances)}] {iid}: MISSING", file=sys.stderr)
+            print(f"[{idx + 1}/{len(instances)}] {iid}: MISSING", file=sys.stderr)
             continue
         try:
             bundle = json.loads(bundle_path.read_text())
         except Exception as e:  # noqa: BLE001
             counts["error"] += 1
             per_instance[iid] = {"status": "error", "error": f"bad bundle file: {e}"}
-            print(f"[{idx+1}/{len(instances)}] {iid}: BAD FILE ({e})", file=sys.stderr)
+            print(f"[{idx + 1}/{len(instances)}] {iid}: BAD FILE ({e})", file=sys.stderr)
             continue
-        if (not isinstance(bundle, list) or not bundle
-                or not all(isinstance(x, list) for x in bundle)):
+        if (
+            not isinstance(bundle, list)
+            or not bundle
+            or not all(isinstance(x, list) for x in bundle)
+        ):
             counts["error"] += 1
-            per_instance[iid] = {"status": "error",
-                                 "error": "bundle must be a non-empty list of action-lists"}
-            print(f"[{idx+1}/{len(instances)}] {iid}: BAD SHAPE", file=sys.stderr)
+            per_instance[iid] = {
+                "status": "error",
+                "error": "bundle must be a non-empty list of action-lists",
+            }
+            print(f"[{idx + 1}/{len(instances)}] {iid}: BAD SHAPE", file=sys.stderr)
             continue
 
         t0 = time.time()
         result = run_three_attempt(
-            evaluator, inst, bundle[:args.max_attempts],
+            evaluator,
+            inst,
+            bundle[: args.max_attempts],
             perspective=args.perspective,
         )
         elapsed = round(time.time() - t0, 2)
@@ -238,7 +266,7 @@ def main(argv: list[str] | None = None) -> int:
         row["elapsed"] = elapsed
         per_instance[iid] = row
         print(
-            f"[{idx+1}/{len(instances)}] {iid}: {result.status.upper()} "
+            f"[{idx + 1}/{len(instances)}] {iid}: {result.status.upper()} "
             f"(attempts={result.attempts_used}, {elapsed}s)",
             file=sys.stderr,
         )

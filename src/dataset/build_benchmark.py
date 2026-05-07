@@ -15,51 +15,86 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path as _Path
+
 _REPO_ROOT = _Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "src"))
 
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import sqlite3
 import sys
-import hashlib
 from pathlib import Path
-from typing import Optional
-
 
 # ---------------------------------------------------------------------------
 # Card database
 # ---------------------------------------------------------------------------
 
 CARD_TYPES = {
-    0x1: "Monster", 0x2: "Spell", 0x4: "Trap",
-    0x10: "Normal", 0x20: "Effect", 0x40: "Fusion",
-    0x80: "Ritual", 0x200: "Spirit", 0x400: "Union",
-    0x800: "Gemini", 0x1000: "Tuner", 0x2000: "Synchro",
-    0x4000: "Token", 0x8000: "Quick-Play", 0x10000: "Continuous",
-    0x20000: "Equip", 0x40000: "Field", 0x80000: "Counter",
-    0x100000: "Flip", 0x200000: "Toon", 0x400000: "Xyz",
-    0x800000: "Pendulum", 0x1000000: "Link",
+    0x1: "Monster",
+    0x2: "Spell",
+    0x4: "Trap",
+    0x10: "Normal",
+    0x20: "Effect",
+    0x40: "Fusion",
+    0x80: "Ritual",
+    0x200: "Spirit",
+    0x400: "Union",
+    0x800: "Gemini",
+    0x1000: "Tuner",
+    0x2000: "Synchro",
+    0x4000: "Token",
+    0x8000: "Quick-Play",
+    0x10000: "Continuous",
+    0x20000: "Equip",
+    0x40000: "Field",
+    0x80000: "Counter",
+    0x100000: "Flip",
+    0x200000: "Toon",
+    0x400000: "Xyz",
+    0x800000: "Pendulum",
+    0x1000000: "Link",
 }
 RACES = {
-    0x1: "Warrior", 0x2: "Spellcaster", 0x4: "Fairy",
-    0x8: "Fiend", 0x10: "Zombie", 0x20: "Machine",
-    0x40: "Aqua", 0x80: "Pyro", 0x100: "Rock",
-    0x200: "Winged Beast", 0x400: "Plant", 0x800: "Insect",
-    0x1000: "Thunder", 0x2000: "Dragon", 0x4000: "Beast",
-    0x8000: "Beast-Warrior", 0x10000: "Dinosaur", 0x20000: "Fish",
-    0x40000: "Sea Serpent", 0x80000: "Reptile",
-    0x100000: "Psychic", 0x200000: "Divine-Beast",
-    0x400000: "Creator God", 0x800000: "Wyrm",
-    0x1000000: "Cyberse", 0x2000000: "Illusion",
+    0x1: "Warrior",
+    0x2: "Spellcaster",
+    0x4: "Fairy",
+    0x8: "Fiend",
+    0x10: "Zombie",
+    0x20: "Machine",
+    0x40: "Aqua",
+    0x80: "Pyro",
+    0x100: "Rock",
+    0x200: "Winged Beast",
+    0x400: "Plant",
+    0x800: "Insect",
+    0x1000: "Thunder",
+    0x2000: "Dragon",
+    0x4000: "Beast",
+    0x8000: "Beast-Warrior",
+    0x10000: "Dinosaur",
+    0x20000: "Fish",
+    0x40000: "Sea Serpent",
+    0x80000: "Reptile",
+    0x100000: "Psychic",
+    0x200000: "Divine-Beast",
+    0x400000: "Creator God",
+    0x800000: "Wyrm",
+    0x1000000: "Cyberse",
+    0x2000000: "Illusion",
 }
 ATTRIBUTES = {
-    0x1: "EARTH", 0x2: "WATER", 0x4: "FIRE",
-    0x8: "WIND", 0x10: "LIGHT", 0x20: "DARK", 0x40: "DIVINE",
+    0x1: "EARTH",
+    0x2: "WATER",
+    0x4: "FIRE",
+    0x8: "WIND",
+    0x10: "LIGHT",
+    0x20: "DARK",
+    0x40: "DIVINE",
 }
 
 
@@ -87,7 +122,7 @@ class CardDatabase:
                 self._datas[cid] = dict(row)
         conn.close()
 
-    def lookup(self, card_id: int) -> Optional[dict]:
+    def lookup(self, card_id: int) -> dict | None:
         if card_id not in self._texts:
             return None
         name, desc = self._texts[card_id]
@@ -151,30 +186,40 @@ def parse_game_state(lua_text: str, db: CardDatabase) -> dict:
     state = {
         "player": {
             "life_points": 8000,
-            "hand": [], "monster_zone": [], "spell_zone": [],
-            "graveyard": [], "banished": [], "deck": [], "extra_deck": [],
+            "hand": [],
+            "monster_zone": [],
+            "spell_zone": [],
+            "graveyard": [],
+            "banished": [],
+            "deck": [],
+            "extra_deck": [],
         },
         "opponent": {
             "life_points": 8000,
-            "hand": [], "monster_zone": [], "spell_zone": [],
-            "graveyard": [], "banished": [], "deck": [], "extra_deck": [],
+            "hand": [],
+            "monster_zone": [],
+            "spell_zone": [],
+            "graveyard": [],
+            "banished": [],
+            "deck": [],
+            "extra_deck": [],
         },
     }
 
     # Parse life points
-    for m in re.finditer(r'Debug\.SetPlayerInfo\((\d+)\s*,\s*(\d+)', lua_text):
+    for m in re.finditer(r"Debug\.SetPlayerInfo\((\d+)\s*,\s*(\d+)", lua_text):
         player_id, lp = int(m.group(1)), int(m.group(2))
         side = "player" if player_id == 0 else "opponent"
         state[side]["life_points"] = lp
 
     # Parse card placements
     add_card_re = re.compile(
-        r'Debug\.AddCard\(\s*(\d+)\s*,'   # card_id
-        r'\s*(\d+)\s*,'                     # owner
-        r'\s*(\d+)\s*,'                     # controller
-        r'\s*(\w+)\s*,'                     # location
-        r'\s*(\d+)\s*,'                     # zone_index
-        r'\s*(\w+)'                         # position
+        r"Debug\.AddCard\(\s*(\d+)\s*,"  # card_id
+        r"\s*(\d+)\s*,"  # owner
+        r"\s*(\d+)\s*,"  # controller
+        r"\s*(\w+)\s*,"  # location
+        r"\s*(\d+)\s*,"  # zone_index
+        r"\s*(\w+)"  # position
     )
     for m in add_card_re.finditer(lua_text):
         card_id = int(m.group(1))
@@ -220,42 +265,41 @@ def format_card_details(card_ids: list[int], db: CardDatabase) -> dict:
 # Solution extraction (kept for gold reference)
 # ---------------------------------------------------------------------------
 
+
 def strip_solution(lua_text: str) -> str:
     """Remove all solution content from a Lua puzzle file."""
-    stripped = re.sub(
-        r'--\[\[(?:(?!\]\]).)*?[Ss]olution.*?\]\]',
-        '', lua_text, flags=re.DOTALL
-    )
-    match = re.search(r'(aux\.BeginPuzzle\(\))', stripped)
+    stripped = re.sub(r"--\[\[(?:(?!\]\]).)*?[Ss]olution.*?\]\]", "", lua_text, flags=re.DOTALL)
+    match = re.search(r"(aux\.BeginPuzzle\(\))", stripped)
     if match:
-        before = stripped[:match.end()]
-        after = stripped[match.end():]
-        after = re.sub(r'--.*', '', after)
+        before = stripped[: match.end()]
+        after = stripped[match.end() :]
+        after = re.sub(r"--.*", "", after)
         after = after.strip()
-        stripped = before + '\n'
+        stripped = before + "\n"
     else:
-        stripped = re.sub(r'\n\s*--\s*(?:Puzzle )?[Ss]olution.*', '', stripped, flags=re.DOTALL)
-    stripped = re.sub(r'\n\s*--\s*Solution\s*\(Video\).*\n', '\n', stripped, flags=re.IGNORECASE)
-    return stripped.rstrip() + '\n'
+        stripped = re.sub(r"\n\s*--\s*(?:Puzzle )?[Ss]olution.*", "", stripped, flags=re.DOTALL)
+    stripped = re.sub(r"\n\s*--\s*Solution\s*\(Video\).*\n", "\n", stripped, flags=re.IGNORECASE)
+    return stripped.rstrip() + "\n"
 
 
-def extract_solution(lua_text: str) -> Optional[str]:
+def extract_solution(lua_text: str) -> str | None:
     """Extract the solution text from puzzle comments."""
-    if re.search(r'--\s*Solution\s*\(Video\)', lua_text, re.IGNORECASE):
-        if not re.search(r'--\[\[.*?Solution.*?\n.*?\w.*?\]\]', lua_text, re.DOTALL | re.IGNORECASE):
-            after_puzzle = lua_text.split('aux.BeginPuzzle()')[-1] if 'aux.BeginPuzzle()' in lua_text else ''
-            sol_lines = re.findall(r'--\s*\d+\s+\w.*', after_puzzle)
+    if re.search(r"--\s*Solution\s*\(Video\)", lua_text, re.IGNORECASE):
+        if not re.search(
+            r"--\[\[.*?Solution.*?\n.*?\w.*?\]\]", lua_text, re.DOTALL | re.IGNORECASE
+        ):
+            after_puzzle = (
+                lua_text.split("aux.BeginPuzzle()")[-1] if "aux.BeginPuzzle()" in lua_text else ""
+            )
+            sol_lines = re.findall(r"--\s*\d+\s+\w.*", after_puzzle)
             if not sol_lines:
                 return None
 
-    sol_match = re.search(
-        r'Solution\s*:?\s*\n(.*?)(?:\]\]|$)',
-        lua_text, re.DOTALL | re.IGNORECASE
-    )
+    sol_match = re.search(r"Solution\s*:?\s*\n(.*?)(?:\]\]|$)", lua_text, re.DOTALL | re.IGNORECASE)
     if not sol_match:
-        if 'aux.BeginPuzzle()' in lua_text:
-            after = lua_text.split('aux.BeginPuzzle()')[-1]
-            sol_lines = re.findall(r'--\s*(\d+\s+.+)', after)
+        if "aux.BeginPuzzle()" in lua_text:
+            after = lua_text.split("aux.BeginPuzzle()")[-1]
+            sol_lines = re.findall(r"--\s*(\d+\s+.+)", after)
             if sol_lines:
                 return "\n".join(l.strip() for l in sol_lines)
         return None
@@ -264,13 +308,13 @@ def extract_solution(lua_text: str) -> Optional[str]:
     lines = []
     for line in raw.split("\n"):
         line = line.strip().lstrip("-").strip()
-        if not line or re.match(r'^[=\-\*\+\~\^]+$', line):
+        if not line or re.match(r"^[=\-\*\+\~\^]+$", line):
             continue
-        if re.match(r'^\d+$', line):
+        if re.match(r"^\d+$", line):
             continue
-        if re.match(r'^Part\s+\d+', line, re.IGNORECASE):
+        if re.match(r"^Part\s+\d+", line, re.IGNORECASE):
             continue
-        if re.match(r'^Completion Reward', line, re.IGNORECASE):
+        if re.match(r"^Completion Reward", line, re.IGNORECASE):
             continue
         lines.append(line)
     return "\n".join(lines) if lines else None
@@ -279,15 +323,15 @@ def extract_solution(lua_text: str) -> Optional[str]:
 def merge_continuation_lines(text: str) -> list[str]:
     """Split solution text into steps, merging continuation lines."""
     step_start = re.compile(
-        r'^\s*(?:'
-        r'(?:step\s*)?\d+\s*[\.\)\:\-]'
-        r'|\d+\s+(?:activate|summon|set|attack|enter|flip|change|special|discard|switch|sacrifice|choose|equip|use|normal|tribute|synchro|xyz|fusion|link|ritual|battle|end|pendulum)\b'
-        r'|[\-\*]'
-        r'|(?:activate|summon|set|attack|enter|flip|change|special|discard|switch|sacrifice|choose|equip|use|normal|tribute|synchro|xyz|fusion|link|ritual|battle|end|pendulum)\b'
-        r')',
+        r"^\s*(?:"
+        r"(?:step\s*)?\d+\s*[\.\)\:\-]"
+        r"|\d+\s+(?:activate|summon|set|attack|enter|flip|change|special|discard|switch|sacrifice|choose|equip|use|normal|tribute|synchro|xyz|fusion|link|ritual|battle|end|pendulum)\b"
+        r"|[\-\*]"
+        r"|(?:activate|summon|set|attack|enter|flip|change|special|discard|switch|sacrifice|choose|equip|use|normal|tribute|synchro|xyz|fusion|link|ritual|battle|end|pendulum)\b"
+        r")",
         re.IGNORECASE,
     )
-    raw_lines = [l.strip() for l in text.strip().split('\n') if l.strip()]
+    raw_lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
     if not raw_lines:
         return []
     merged = [raw_lines[0]]
@@ -295,11 +339,11 @@ def merge_continuation_lines(text: str) -> list[str]:
         if step_start.match(line):
             merged.append(line)
         else:
-            merged[-1] = merged[-1] + ' ' + line
+            merged[-1] = merged[-1] + " " + line
     steps = []
     for line in merged:
-        cleaned = re.sub(r'^\s*(?:step\s*)?\d+\s*[\.\)\:\-\s]\s*', '', line, flags=re.IGNORECASE)
-        cleaned = re.sub(r'^\s*[\-\*]\s*', '', cleaned).strip()
+        cleaned = re.sub(r"^\s*(?:step\s*)?\d+\s*[\.\)\:\-\s]\s*", "", line, flags=re.IGNORECASE)
+        cleaned = re.sub(r"^\s*[\-\*]\s*", "", cleaned).strip()
         if cleaned:
             steps.append(cleaned)
     return steps
@@ -309,21 +353,22 @@ def merge_continuation_lines(text: str) -> list[str]:
 # Metadata
 # ---------------------------------------------------------------------------
 
+
 def extract_metadata(lua_text: str) -> dict:
     meta = {}
-    msg_match = re.search(r'--\[\[message\s*\n(.*?)\]\]', lua_text, re.DOTALL)
+    msg_match = re.search(r"--\[\[message\s*\n(.*?)\]\]", lua_text, re.DOTALL)
     if msg_match:
         msg = msg_match.group(1)
-        cx = re.search(r'Complexity:\s*(.+)', msg, re.IGNORECASE)
+        cx = re.search(r"Complexity:\s*(.+)", msg, re.IGNORECASE)
         if cx:
             meta["complexity"] = cx.group(1).strip().rstrip(".")
-        obj = re.search(r'Objective:\s*(.+)', msg, re.IGNORECASE)
+        obj = re.search(r"Objective:\s*(.+)", msg, re.IGNORECASE)
         if obj:
             meta["objective"] = obj.group(1).strip()
     meta.setdefault("objective", "Win this turn")
     meta["is_rush"] = "DUEL_MODE_RUSH" in lua_text
-    meta["uses_advanced_api"] = bool(re.search(r'(?<!Debug\.)(?:Effect|Duel)\.', lua_text))
-    lps = re.findall(r'Debug\.SetPlayerInfo\((\d+),(\d+),', lua_text)
+    meta["uses_advanced_api"] = bool(re.search(r"(?<!Debug\.)(?:Effect|Duel)\.", lua_text))
+    lps = re.findall(r"Debug\.SetPlayerInfo\((\d+),(\d+),", lua_text)
     for pid, lp in lps:
         if pid == "0":
             meta["player_lp"] = int(lp)
@@ -333,18 +378,25 @@ def extract_metadata(lua_text: str) -> dict:
 
 
 def extract_card_ids(lua_text: str) -> list[int]:
-    return [int(m) for m in re.findall(r'Debug\.AddCard\(\s*(0?\d+)', lua_text)]
+    return [int(m) for m in re.findall(r"Debug\.AddCard\(\s*(0?\d+)", lua_text)]
 
 
 def extract_hints(lua_text: str) -> list[str]:
     hints = re.findall(r'Debug\.ShowHint\("([^"]+)"\)', lua_text)
-    return [h for h in hints if not re.match(r'^Win\b', h, re.IGNORECASE)]
+    return [h for h in hints if not re.match(r"^Win\b", h, re.IGNORECASE)]
 
 
 def title_from_filename(path: Path) -> str:
     title = path.stem
-    for prefix in ("[GX_Spirit_Caller]", "[WCS2006]", "[WCS2007]", "[WCS2008]",
-                   "[Nightmare Troubadour]", "[RUSH]", "Naim_DuelLinks_"):
+    for prefix in (
+        "[GX_Spirit_Caller]",
+        "[WCS2006]",
+        "[WCS2007]",
+        "[WCS2008]",
+        "[Nightmare Troubadour]",
+        "[RUSH]",
+        "Naim_DuelLinks_",
+    ):
         title = title.replace(prefix, "")
     return title.strip()
 
@@ -550,8 +602,9 @@ separate action objects immediately after the action that triggers them.\
 """
 
 
-def build_prompt(game_state: dict, card_details: dict, meta: dict,
-                 hints: list[str], include_example: bool = True) -> str:
+def build_prompt(
+    game_state: dict, card_details: dict, meta: dict, hints: list[str], include_example: bool = True
+) -> str:
     """Build the full prompt for a puzzle instance."""
     parts = [
         RULES_PREAMBLE,
@@ -591,8 +644,12 @@ def build_prompt(game_state: dict, card_details: dict, meta: dict,
 
     parts.append("")
     parts.append("## Task")
-    parts.append(f"Determine the sequence of actions to {meta.get('objective', 'win this turn').lower()}.")
-    parts.append("Think through the puzzle, then provide your final answer as a JSON array inside <solution> tags.")
+    parts.append(
+        f"Determine the sequence of actions to {meta.get('objective', 'win this turn').lower()}."
+    )
+    parts.append(
+        "Think through the puzzle, then provide your final answer as a JSON array inside <solution> tags."
+    )
     return "\n".join(parts)
 
 
@@ -685,50 +742,77 @@ def _default_script_dir() -> Path:
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Build the YuGiOh-Bench dataset from EDOPro puzzle scripts.")
-    ap.add_argument("--puzzle-root", type=Path,
-                    default=_default_puzzle_root(),
-                    help="Path to the EDOPro puzzles directory.  "
-                         "Default search: vendor/puzzles (populated by "
-                         "setup.sh's pinned ProjectIgnis/Puzzles clone), "
-                         "then ../puzzles, then $YGO_PUZZLE_ROOT, then "
-                         "an EDOPro client install if present.")
-    ap.add_argument("--cdb-dir", type=Path, default=_default_cdb_dir(),
-                    help="Directory containing EDOPro card .cdb SQLite files "
-                         "(default: vendor/distribution/expansions or "
-                         "../distribution/expansions or $YGO_DB_DIR)")
-    ap.add_argument("--script-dir", type=Path, default=_default_script_dir(),
-                    help="Directory containing card Lua scripts (c*.lua)")
-    ap.add_argument("--output", type=Path,
-                    default=REPO_ROOT / "data" / "yugioh_bench.jsonl",
-                    help="Output JSONL path")
-    ap.add_argument("--overwrite", action="store_true",
-                    help="Overwrite an existing output file")
-    ap.add_argument("--no-example", action="store_true",
-                    help="Omit the worked example from the action schema "
-                         "in each puzzle prompt")
-    ap.add_argument("--lean", action="store_true",
-                    help="Omit Konami-derived bulk text fields "
-                         "(card_details, prompt) from the JSONL.  The "
-                         "released dataset uses --lean; the runner "
-                         "rebuilds the omitted fields locally from the "
-                         "BabelCDB clone via src/dataset/enrich.py.  See "
-                         "the appendix of the paper for the rationale.")
+        description="Build the YuGiOh-Bench dataset from EDOPro puzzle scripts."
+    )
+    ap.add_argument(
+        "--puzzle-root",
+        type=Path,
+        default=_default_puzzle_root(),
+        help="Path to the EDOPro puzzles directory.  "
+        "Default search: vendor/puzzles (populated by "
+        "setup.sh's pinned ProjectIgnis/Puzzles clone), "
+        "then ../puzzles, then $YGO_PUZZLE_ROOT, then "
+        "an EDOPro client install if present.",
+    )
+    ap.add_argument(
+        "--cdb-dir",
+        type=Path,
+        default=_default_cdb_dir(),
+        help="Directory containing EDOPro card .cdb SQLite files "
+        "(default: vendor/distribution/expansions or "
+        "../distribution/expansions or $YGO_DB_DIR)",
+    )
+    ap.add_argument(
+        "--script-dir",
+        type=Path,
+        default=_default_script_dir(),
+        help="Directory containing card Lua scripts (c*.lua)",
+    )
+    ap.add_argument(
+        "--output",
+        type=Path,
+        default=REPO_ROOT / "data" / "yugioh_bench.jsonl",
+        help="Output JSONL path",
+    )
+    ap.add_argument("--overwrite", action="store_true", help="Overwrite an existing output file")
+    ap.add_argument(
+        "--no-example",
+        action="store_true",
+        help="Omit the worked example from the action schema in each puzzle prompt",
+    )
+    ap.add_argument(
+        "--lean",
+        action="store_true",
+        help="Omit Konami-derived bulk text fields "
+        "(card_details, prompt) from the JSONL.  The "
+        "released dataset uses --lean; the runner "
+        "rebuilds the omitted fields locally from the "
+        "BabelCDB clone via src/dataset/enrich.py.  See "
+        "the appendix of the paper for the rationale.",
+    )
     args = ap.parse_args()
 
     if args.output.exists() and not args.overwrite:
-        print(f"error: {args.output} already exists; pass --overwrite to regenerate",
-              file=sys.stderr)
+        print(
+            f"error: {args.output} already exists; pass --overwrite to regenerate", file=sys.stderr
+        )
         return 1
 
     # Load card databases
     cdb_dir = args.cdb_dir
-    cdb_paths = [p for p in [
-        cdb_dir / "cards.cdb", cdb_dir / "cards-rush.cdb",
-        cdb_dir / "cards-unofficial.cdb", cdb_dir / "cards-unofficial-new.cdb",
-        cdb_dir / "goat-entries.cdb", cdb_dir / "cards-skills.cdb",
-        cdb_dir / "cards-skills-unofficial.cdb",
-    ] if p.exists()]
+    cdb_paths = [
+        p
+        for p in [
+            cdb_dir / "cards.cdb",
+            cdb_dir / "cards-rush.cdb",
+            cdb_dir / "cards-unofficial.cdb",
+            cdb_dir / "cards-unofficial-new.cdb",
+            cdb_dir / "goat-entries.cdb",
+            cdb_dir / "cards-skills.cdb",
+            cdb_dir / "cards-skills-unofficial.cdb",
+        ]
+        if p.exists()
+    ]
     if not cdb_paths:
         print(f"error: no card .cdb files found in {cdb_dir}", file=sys.stderr)
         return 1
@@ -742,18 +826,17 @@ def main() -> int:
         script_count = sum(1 for _ in script_dir.glob("c*.lua"))
         print(f"Found {script_count} card Lua scripts in {script_dir}")
     else:
-        print(f"warning: script dir {script_dir} not found; "
-              f"cards_with_scripts will be empty", file=sys.stderr)
+        print(
+            f"warning: script dir {script_dir} not found; cards_with_scripts will be empty",
+            file=sys.stderr,
+        )
 
     # Find puzzles
     puzzle_root = args.puzzle_root
     if not puzzle_root.is_dir():
         print(f"error: puzzle root {puzzle_root} not found", file=sys.stderr)
         return 1
-    lua_files = sorted(
-        f for f in puzzle_root.rglob("*.lua")
-        if ".git" not in f.parts
-    )
+    lua_files = sorted(f for f in puzzle_root.rglob("*.lua") if ".git" not in f.parts)
     print(f"Found {len(lua_files)} puzzle files")
 
     # Process each puzzle
@@ -799,8 +882,9 @@ def main() -> int:
                 if script_path.exists():
                     cards_with_scripts.append(cid)
 
-        prompt = build_prompt(game_state, card_details, meta, hints,
-                              include_example=not args.no_example)
+        prompt = build_prompt(
+            game_state, card_details, meta, hints, include_example=not args.no_example
+        )
 
         solution_steps = merge_continuation_lines(solution) if solution else []
 
@@ -811,8 +895,7 @@ def main() -> int:
 
         if instance_id in EXCLUDED_PUZZLES:
             skipped["engine_bug"] += 1
-            print(f"  skipped (engine-bug exclusion): {instance_id}  {rel_path}",
-                  file=sys.stderr)
+            print(f"  skipped (engine-bug exclusion): {instance_id}  {rel_path}", file=sys.stderr)
             continue
 
         instance = {
@@ -871,22 +954,27 @@ def main() -> int:
     for inst in dataset:
         src = inst["metadata"]["source"]
         cats[src] = cats.get(src, 0) + 1
-    print(f"\nBy source:")
+    print("\nBy source:")
     for src, n in sorted(cats.items(), key=lambda x: -x[1]):
         print(f"  {src}: {n}")
 
-    steps = [inst["num_solution_steps"] for inst in dataset
-             if inst["metadata"].get("has_gold_solution")]
+    steps = [
+        inst["num_solution_steps"] for inst in dataset if inst["metadata"].get("has_gold_solution")
+    ]
     if steps:
-        print(f"\nSolution steps (gold-solution puzzles only): "
-              f"min={min(steps)}, max={max(steps)}, avg={sum(steps)/len(steps):.1f}")
+        print(
+            f"\nSolution steps (gold-solution puzzles only): "
+            f"min={min(steps)}, max={max(steps)}, avg={sum(steps) / len(steps):.1f}"
+        )
 
     # Card script coverage
     if has_scripts:
         with_scripts = sum(1 for inst in dataset if inst["cards_with_scripts"])
         total_scripted = sum(len(inst["cards_with_scripts"]) for inst in dataset)
         total_cards = sum(len(inst["card_ids"]) for inst in dataset)
-        print(f"\nCard scripts: {total_scripted}/{total_cards} unique card-puzzle pairs have Lua scripts")
+        print(
+            f"\nCard scripts: {total_scripted}/{total_cards} unique card-puzzle pairs have Lua scripts"
+        )
         print(f"  ({with_scripts}/{len(dataset)} puzzles have at least one scripted card)")
 
     return 0

@@ -18,10 +18,12 @@ Usage:
     python api-eval/extract_actions.py <jsonl> --output <path>
     python api-eval/extract_actions.py <jsonl> --allow-non-win
 """
+
 from __future__ import annotations
 
 import sys
 from pathlib import Path as _Path
+
 _REPO_ROOT = _Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "src"))
@@ -32,15 +34,16 @@ import json
 import sys
 from pathlib import Path
 
-
 # Inspection tools never affect engine state, so they're stripped from
 # the replay action list.  Keep this in sync with engine.tools.
-INSPECTION_TOOLS = frozenset({
-    "get_state",
-    "pending_decision",
-    "inspect_card",
-    "get_glossary",
-})
+INSPECTION_TOOLS = frozenset(
+    {
+        "get_state",
+        "pending_decision",
+        "inspect_card",
+        "get_glossary",
+    }
+)
 
 
 def extract(jsonl_path: Path) -> tuple[list[dict], dict | None, str | None]:
@@ -65,8 +68,7 @@ def extract(jsonl_path: Path) -> tuple[list[dict], dict | None, str | None]:
 
     # Build error map: tool_call_id -> bool(is_error)
     err_by_id: dict[str, bool] = {}
-    pending_unknown_ids: list[int] = []  # FIFO of model_turn record indices missing ids
-    for i, rec in enumerate(records):
+    for rec in records:
         if rec.get("type") == "model_turn":
             for tc in rec.get("tool_calls", []):
                 if tc.get("id"):
@@ -87,7 +89,7 @@ def extract(jsonl_path: Path) -> tuple[list[dict], dict | None, str | None]:
         if rec.get("type") == "tool_result" and not rec.get("tool_use_id"):
             result_errs.append(bool(rec.get("is_error")))
     positional_errs: dict[tuple[int, int], bool] = {
-        c: e for c, e in zip(call_seq, result_errs)
+        c: e for c, e in zip(call_seq, result_errs, strict=False)
     }
 
     actions: list[dict] = []
@@ -108,10 +110,12 @@ def extract(jsonl_path: Path) -> tuple[list[dict], dict | None, str | None]:
                     continue
                 if not tcid and positional_errs.get((i, j), False):
                     continue
-                actions.append({
-                    "tool": name,
-                    "args": tc.get("arguments", {}),
-                })
+                actions.append(
+                    {
+                        "tool": name,
+                        "args": tc.get("arguments", {}),
+                    }
+                )
         elif t == "outcome":
             outcome = rec
     iid = jsonl_path.stem
@@ -120,16 +124,22 @@ def extract(jsonl_path: Path) -> tuple[list[dict], dict | None, str | None]:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("jsonl", type=Path,
-                    help="Fully-interactive run JSONL (one puzzle's full log)")
-    ap.add_argument("--output", type=Path, default=None,
-                    help="Output path (default: "
-                         "solutions/<instance_id>.json relative to the "
-                         "yugi-bench repo root)")
-    ap.add_argument("--allow-non-win", action="store_true",
-                    help="Write the file even if the run did not win.  "
-                         "Default: refuse, to prevent shipping broken "
-                         "solutions as canonical.")
+    ap.add_argument("jsonl", type=Path, help="Fully-interactive run JSONL (one puzzle's full log)")
+    ap.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Output path (default: "
+        "solutions/<instance_id>.json relative to the "
+        "yugi-bench repo root)",
+    )
+    ap.add_argument(
+        "--allow-non-win",
+        action="store_true",
+        help="Write the file even if the run did not win.  "
+        "Default: refuse, to prevent shipping broken "
+        "solutions as canonical.",
+    )
     args = ap.parse_args(argv)
 
     if not args.jsonl.exists():
@@ -139,21 +149,28 @@ def main(argv: list[str] | None = None) -> int:
     actions, outcome, iid = extract(args.jsonl)
 
     if outcome is None:
-        print(f"warning: {args.jsonl.name} has no terminal outcome record "
-              f"(run did not complete)", file=sys.stderr)
+        print(
+            f"warning: {args.jsonl.name} has no terminal outcome record (run did not complete)",
+            file=sys.stderr,
+        )
         won = False
     else:
         won = bool(outcome.get("game_over")) and outcome.get("winner") == 0
 
     print(f"  instance_id : {iid}", file=sys.stderr)
     print(f"  actions     : {len(actions)}", file=sys.stderr)
-    print(f"  outcome     : termination={outcome and outcome.get('termination')!r} "
-          f"winner={outcome and outcome.get('winner')} "
-          f"lp={outcome and outcome.get('lp')}", file=sys.stderr)
+    print(
+        f"  outcome     : termination={outcome and outcome.get('termination')!r} "
+        f"winner={outcome and outcome.get('winner')} "
+        f"lp={outcome and outcome.get('lp')}",
+        file=sys.stderr,
+    )
 
     if not won and not args.allow_non_win:
-        print("refusing to write: run did not win.  Pass --allow-non-win "
-              "to override.", file=sys.stderr)
+        print(
+            "refusing to write: run did not win.  Pass --allow-non-win to override.",
+            file=sys.stderr,
+        )
         return 1
 
     if args.output is None:
@@ -163,8 +180,7 @@ def main(argv: list[str] | None = None) -> int:
         out_path = args.output
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(actions, indent=2))
-    print(f"  wrote {out_path} ({out_path.stat().st_size} bytes)",
-          file=sys.stderr)
+    print(f"  wrote {out_path} ({out_path.stat().st_size} bytes)", file=sys.stderr)
     return 0
 
 

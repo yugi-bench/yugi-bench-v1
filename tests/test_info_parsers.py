@@ -12,6 +12,7 @@ then feeds it to ``OCGEngine._parse_single_message`` via
 parsers are pure — they only read from a ``MessageReader`` and never
 touch ``self.lib``.
 """
+
 from __future__ import annotations
 
 import struct
@@ -35,10 +36,20 @@ def loc_info(con: int, loc: int, seq: int, pos: int) -> bytes:
     return struct.pack("<BBII", con, loc, seq, pos)
 
 
-def u8(v: int) -> bytes:  return struct.pack("<B", v)
-def u16(v: int) -> bytes: return struct.pack("<H", v)
-def u32(v: int) -> bytes: return struct.pack("<I", v)
-def u64(v: int) -> bytes: return struct.pack("<Q", v)
+def u8(v: int) -> bytes:
+    return struct.pack("<B", v)
+
+
+def u16(v: int) -> bytes:
+    return struct.pack("<H", v)
+
+
+def u32(v: int) -> bytes:
+    return struct.pack("<I", v)
+
+
+def u64(v: int) -> bytes:
+    return struct.pack("<Q", v)
 
 
 def _parse(eng: OCGEngine, msg_type: int, body: bytes):
@@ -90,17 +101,27 @@ def test_msg_pay_lpcost(eng: OCGEngine) -> None:
 def test_msg_hint(eng: OCGEngine) -> None:
     body = u8(engine.HINT_EVENT) + u8(0) + u64(0x12345678_90ABCDEF)
     out = _parse(eng, engine.MSG_HINT, body)
-    assert out == {"type": engine.HINT_EVENT, "player": 0,
-                   "data": 0x12345678_90ABCDEF}
+    assert out == {"type": engine.HINT_EVENT, "player": 0, "data": 0x12345678_90ABCDEF}
 
 
 def test_msg_card_hint(eng: OCGEngine) -> None:
-    body = (u8(0) + u8(engine.LOCATION_MZONE) + u32(2) + u32(engine.POS_FACEUP_ATTACK)
-            + u8(engine.CHINT_DESC_ADD) + u64(999))
+    body = (
+        u8(0)
+        + u8(engine.LOCATION_MZONE)
+        + u32(2)
+        + u32(engine.POS_FACEUP_ATTACK)
+        + u8(engine.CHINT_DESC_ADD)
+        + u64(999)
+    )
     out = _parse(eng, engine.MSG_CARD_HINT, body)
-    assert out == {"con": 0, "loc": engine.LOCATION_MZONE, "seq": 2,
-                   "pos": engine.POS_FACEUP_ATTACK,
-                   "type": engine.CHINT_DESC_ADD, "value": 999}
+    assert out == {
+        "con": 0,
+        "loc": engine.LOCATION_MZONE,
+        "seq": 2,
+        "pos": engine.POS_FACEUP_ATTACK,
+        "type": engine.CHINT_DESC_ADD,
+        "value": 999,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -197,46 +218,63 @@ def test_msg_retry(eng: OCGEngine) -> None:
 # Movement family — the heart of provenance tracking
 # ---------------------------------------------------------------------------
 def test_msg_move(eng: OCGEngine) -> None:
-    code = 0x00004ce5
+    code = 0x00004CE5
     prev = loc_info(0, engine.LOCATION_HAND, 2, 0)
     curr = loc_info(0, engine.LOCATION_MZONE, 3, engine.POS_FACEUP_ATTACK)
     reason = engine.REASON_SUMMON
     body = u32(code) + prev + curr + u32(reason)
     out = _parse(eng, engine.MSG_MOVE, body)
     assert out["code"] == code
-    assert out["previous"] == {"con": 0, "loc": engine.LOCATION_HAND,
-                               "seq": 2, "pos": 0}
-    assert out["current"] == {"con": 0, "loc": engine.LOCATION_MZONE,
-                              "seq": 3, "pos": engine.POS_FACEUP_ATTACK}
+    assert out["previous"] == {"con": 0, "loc": engine.LOCATION_HAND, "seq": 2, "pos": 0}
+    assert out["current"] == {
+        "con": 0,
+        "loc": engine.LOCATION_MZONE,
+        "seq": 3,
+        "pos": engine.POS_FACEUP_ATTACK,
+    }
     assert out["reason"] == engine.REASON_SUMMON
 
 
 def test_msg_pos_change(eng: OCGEngine) -> None:
     # All three seq/prev_pos/cur_pos are u8 in this message (not u32).
-    body = (u32(0x12345) + u8(0) + u8(engine.LOCATION_MZONE) + u8(1)
-            + u8(engine.POS_FACEDOWN_DEFENSE) + u8(engine.POS_FACEUP_ATTACK))
+    body = (
+        u32(0x12345)
+        + u8(0)
+        + u8(engine.LOCATION_MZONE)
+        + u8(1)
+        + u8(engine.POS_FACEDOWN_DEFENSE)
+        + u8(engine.POS_FACEUP_ATTACK)
+    )
     out = _parse(eng, engine.MSG_POS_CHANGE, body)
     assert out == {
         "code": 0x12345,
-        "con": 0, "loc": engine.LOCATION_MZONE, "seq": 1,
+        "con": 0,
+        "loc": engine.LOCATION_MZONE,
+        "seq": 1,
         "prev_pos": engine.POS_FACEDOWN_DEFENSE,
         "cur_pos": engine.POS_FACEUP_ATTACK,
     }
 
 
 def test_msg_set(eng: OCGEngine) -> None:
-    body = u32(0xABCD) + loc_info(1, engine.LOCATION_SZONE, 0,
-                                   engine.POS_FACEDOWN_DEFENSE)
+    body = u32(0xABCD) + loc_info(1, engine.LOCATION_SZONE, 0, engine.POS_FACEDOWN_DEFENSE)
     out = _parse(eng, engine.MSG_SET, body)
-    assert out == {"code": 0xABCD, "con": 1, "loc": engine.LOCATION_SZONE,
-                   "seq": 0, "pos": engine.POS_FACEDOWN_DEFENSE}
+    assert out == {
+        "code": 0xABCD,
+        "con": 1,
+        "loc": engine.LOCATION_SZONE,
+        "seq": 0,
+        "pos": engine.POS_FACEDOWN_DEFENSE,
+    }
 
 
 def test_msg_swap(eng: OCGEngine) -> None:
-    body = (u32(0x1111) + loc_info(0, engine.LOCATION_MZONE, 0,
-                                     engine.POS_FACEUP_ATTACK)
-            + u32(0x2222) + loc_info(1, engine.LOCATION_MZONE, 2,
-                                       engine.POS_FACEUP_ATTACK))
+    body = (
+        u32(0x1111)
+        + loc_info(0, engine.LOCATION_MZONE, 0, engine.POS_FACEUP_ATTACK)
+        + u32(0x2222)
+        + loc_info(1, engine.LOCATION_MZONE, 2, engine.POS_FACEUP_ATTACK)
+    )
     out = _parse(eng, engine.MSG_SWAP, body)
     assert out["card1"]["code"] == 0x1111
     assert out["card1"]["con"] == 0
@@ -253,20 +291,29 @@ def test_msg_field_disabled(eng: OCGEngine) -> None:
 # ---------------------------------------------------------------------------
 # Summoning family — pre-resolution announcements
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize("msg_type", [
-    engine.MSG_SUMMONING, engine.MSG_SPSUMMONING, engine.MSG_FLIPSUMMONING,
-])
+@pytest.mark.parametrize(
+    "msg_type",
+    [
+        engine.MSG_SUMMONING,
+        engine.MSG_SPSUMMONING,
+        engine.MSG_FLIPSUMMONING,
+    ],
+)
 def test_msg_summoning_family(eng: OCGEngine, msg_type: int) -> None:
-    body = u32(0x5566) + loc_info(0, engine.LOCATION_MZONE, 2,
-                                    engine.POS_FACEUP_ATTACK)
+    body = u32(0x5566) + loc_info(0, engine.LOCATION_MZONE, 2, engine.POS_FACEUP_ATTACK)
     out = _parse(eng, msg_type, body)
     assert out["code"] == 0x5566
     assert out["loc"] == engine.LOCATION_MZONE
 
 
-@pytest.mark.parametrize("msg_type", [
-    engine.MSG_SUMMONED, engine.MSG_SPSUMMONED, engine.MSG_FLIPSUMMONED,
-])
+@pytest.mark.parametrize(
+    "msg_type",
+    [
+        engine.MSG_SUMMONED,
+        engine.MSG_SPSUMMONED,
+        engine.MSG_FLIPSUMMONED,
+    ],
+)
 def test_msg_summoned_family_empty(eng: OCGEngine, msg_type: int) -> None:
     out = _parse(eng, msg_type, b"")
     assert out == {}
@@ -276,11 +323,15 @@ def test_msg_summoned_family_empty(eng: OCGEngine, msg_type: int) -> None:
 # Chain family
 # ---------------------------------------------------------------------------
 def test_msg_chaining(eng: OCGEngine) -> None:
-    body = (u32(0x7777)
-            + loc_info(1, engine.LOCATION_SZONE, 3, engine.POS_FACEUP_ATTACK)
-            + u8(0) + u8(engine.LOCATION_MZONE) + u32(0)  # triggering loc
-            + u64(0xDEADBEEF)                                # desc
-            + u32(2))                                        # chain_count
+    body = (
+        u32(0x7777)
+        + loc_info(1, engine.LOCATION_SZONE, 3, engine.POS_FACEUP_ATTACK)
+        + u8(0)
+        + u8(engine.LOCATION_MZONE)
+        + u32(0)  # triggering loc
+        + u64(0xDEADBEEF)  # desc
+        + u32(2)
+    )  # chain_count
     out = _parse(eng, engine.MSG_CHAINING, body)
     assert out["code"] == 0x7777
     assert out["con"] == 1
@@ -292,10 +343,16 @@ def test_msg_chaining(eng: OCGEngine) -> None:
     assert out["chain_count"] == 2
 
 
-@pytest.mark.parametrize("msg_type", [
-    engine.MSG_CHAINED, engine.MSG_CHAIN_SOLVING, engine.MSG_CHAIN_SOLVED,
-    engine.MSG_CHAIN_NEGATED, engine.MSG_CHAIN_DISABLED,
-])
+@pytest.mark.parametrize(
+    "msg_type",
+    [
+        engine.MSG_CHAINED,
+        engine.MSG_CHAIN_SOLVING,
+        engine.MSG_CHAIN_SOLVED,
+        engine.MSG_CHAIN_NEGATED,
+        engine.MSG_CHAIN_DISABLED,
+    ],
+)
 def test_msg_chain_count_only(eng: OCGEngine, msg_type: int) -> None:
     out = _parse(eng, msg_type, u8(3))
     assert out == {"chain_count": 3}
@@ -309,13 +366,19 @@ def test_msg_chain_end(eng: OCGEngine) -> None:
 # ---------------------------------------------------------------------------
 # Selection-result family
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize("msg_type", [
-    engine.MSG_CARD_SELECTED, engine.MSG_BECOME_TARGET,
-])
+@pytest.mark.parametrize(
+    "msg_type",
+    [
+        engine.MSG_CARD_SELECTED,
+        engine.MSG_BECOME_TARGET,
+    ],
+)
 def test_msg_card_selected_family(eng: OCGEngine, msg_type: int) -> None:
-    body = (u32(2)
-            + loc_info(0, engine.LOCATION_MZONE, 1, engine.POS_FACEUP_ATTACK)
-            + loc_info(1, engine.LOCATION_MZONE, 2, engine.POS_FACEUP_DEFENSE))
+    body = (
+        u32(2)
+        + loc_info(0, engine.LOCATION_MZONE, 1, engine.POS_FACEUP_ATTACK)
+        + loc_info(1, engine.LOCATION_MZONE, 2, engine.POS_FACEUP_DEFENSE)
+    )
     out = _parse(eng, msg_type, body)
     assert len(out["cards"]) == 2
     assert out["cards"][0]["con"] == 0
@@ -323,8 +386,7 @@ def test_msg_card_selected_family(eng: OCGEngine, msg_type: int) -> None:
 
 
 def test_msg_random_selected(eng: OCGEngine) -> None:
-    body = (u8(0) + u32(1)
-            + loc_info(0, engine.LOCATION_HAND, 0, 0))
+    body = u8(0) + u32(1) + loc_info(0, engine.LOCATION_HAND, 0, 0)
     out = _parse(eng, engine.MSG_RANDOM_SELECTED, body)
     assert out["player"] == 0
     assert out["cards"][0]["loc"] == engine.LOCATION_HAND
@@ -334,9 +396,14 @@ def test_msg_random_selected(eng: OCGEngine) -> None:
 # Draw — code + position per card
 # ---------------------------------------------------------------------------
 def test_msg_draw(eng: OCGEngine) -> None:
-    body = (u8(0) + u32(2)
-            + u32(0xAAAA) + u32(engine.POS_FACEDOWN_DEFENSE)
-            + u32(0xBBBB) + u32(engine.POS_FACEDOWN_DEFENSE))
+    body = (
+        u8(0)
+        + u32(2)
+        + u32(0xAAAA)
+        + u32(engine.POS_FACEDOWN_DEFENSE)
+        + u32(0xBBBB)
+        + u32(engine.POS_FACEDOWN_DEFENSE)
+    )
     out = _parse(eng, engine.MSG_DRAW, body)
     assert out["player"] == 0
     assert out["count"] == 2
@@ -350,8 +417,9 @@ def test_msg_draw(eng: OCGEngine) -> None:
 # Equip / target family
 # ---------------------------------------------------------------------------
 def test_msg_equip(eng: OCGEngine) -> None:
-    body = (loc_info(0, engine.LOCATION_SZONE, 1, engine.POS_FACEUP_ATTACK)
-            + loc_info(0, engine.LOCATION_MZONE, 2, engine.POS_FACEUP_ATTACK))
+    body = loc_info(0, engine.LOCATION_SZONE, 1, engine.POS_FACEUP_ATTACK) + loc_info(
+        0, engine.LOCATION_MZONE, 2, engine.POS_FACEUP_ATTACK
+    )
     out = _parse(eng, engine.MSG_EQUIP, body)
     assert out["equip"]["loc"] == engine.LOCATION_SZONE
     assert out["target"]["loc"] == engine.LOCATION_MZONE
@@ -360,16 +428,27 @@ def test_msg_equip(eng: OCGEngine) -> None:
 def test_msg_unequip(eng: OCGEngine) -> None:
     body = loc_info(1, engine.LOCATION_SZONE, 0, engine.POS_FACEUP_ATTACK)
     out = _parse(eng, engine.MSG_UNEQUIP, body)
-    assert out == {"loc_info": {"con": 1, "loc": engine.LOCATION_SZONE,
-                                 "seq": 0, "pos": engine.POS_FACEUP_ATTACK}}
+    assert out == {
+        "loc_info": {
+            "con": 1,
+            "loc": engine.LOCATION_SZONE,
+            "seq": 0,
+            "pos": engine.POS_FACEUP_ATTACK,
+        }
+    }
 
 
-@pytest.mark.parametrize("msg_type", [
-    engine.MSG_CARD_TARGET, engine.MSG_CANCEL_TARGET,
-])
+@pytest.mark.parametrize(
+    "msg_type",
+    [
+        engine.MSG_CARD_TARGET,
+        engine.MSG_CANCEL_TARGET,
+    ],
+)
 def test_msg_card_target_family(eng: OCGEngine, msg_type: int) -> None:
-    body = (loc_info(0, engine.LOCATION_MZONE, 0, engine.POS_FACEUP_ATTACK)
-            + loc_info(1, engine.LOCATION_MZONE, 2, engine.POS_FACEUP_ATTACK))
+    body = loc_info(0, engine.LOCATION_MZONE, 0, engine.POS_FACEUP_ATTACK) + loc_info(
+        1, engine.LOCATION_MZONE, 2, engine.POS_FACEUP_ATTACK
+    )
     out = _parse(eng, msg_type, body)
     assert out["source"]["con"] == 0
     assert out["target"]["con"] == 1
@@ -386,18 +465,25 @@ def test_msg_be_chain_target_raw(eng: OCGEngine) -> None:
 # Combat family
 # ---------------------------------------------------------------------------
 def test_msg_attack(eng: OCGEngine) -> None:
-    body = (loc_info(0, engine.LOCATION_MZONE, 0, engine.POS_FACEUP_ATTACK)
-            + loc_info(1, engine.LOCATION_MZONE, 2, engine.POS_FACEUP_DEFENSE))
+    body = loc_info(0, engine.LOCATION_MZONE, 0, engine.POS_FACEUP_ATTACK) + loc_info(
+        1, engine.LOCATION_MZONE, 2, engine.POS_FACEUP_DEFENSE
+    )
     out = _parse(eng, engine.MSG_ATTACK, body)
     assert out["attacker"]["con"] == 0
     assert out["target"]["con"] == 1
 
 
 def test_msg_battle(eng: OCGEngine) -> None:
-    body = (loc_info(0, engine.LOCATION_MZONE, 0, engine.POS_FACEUP_ATTACK)
-            + u32(2500) + u32(1200) + u8(0)
-            + loc_info(1, engine.LOCATION_MZONE, 2, engine.POS_FACEUP_ATTACK)
-            + u32(1800) + u32(1500) + u8(1))
+    body = (
+        loc_info(0, engine.LOCATION_MZONE, 0, engine.POS_FACEUP_ATTACK)
+        + u32(2500)
+        + u32(1200)
+        + u8(0)
+        + loc_info(1, engine.LOCATION_MZONE, 2, engine.POS_FACEUP_ATTACK)
+        + u32(1800)
+        + u32(1500)
+        + u8(1)
+    )
     out = _parse(eng, engine.MSG_BATTLE, body)
     assert out["attacker_attack"] == 2500
     assert out["attacker_defense"] == 1200
@@ -412,9 +498,13 @@ def test_msg_attack_disabled(eng: OCGEngine) -> None:
     assert out == {}
 
 
-@pytest.mark.parametrize("msg_type", [
-    engine.MSG_DAMAGE_STEP_START, engine.MSG_DAMAGE_STEP_END,
-])
+@pytest.mark.parametrize(
+    "msg_type",
+    [
+        engine.MSG_DAMAGE_STEP_START,
+        engine.MSG_DAMAGE_STEP_END,
+    ],
+)
 def test_msg_damage_step_markers(eng: OCGEngine, msg_type: int) -> None:
     out = _parse(eng, msg_type, b"")
     assert out == {}
@@ -424,8 +514,7 @@ def test_msg_damage_step_markers(eng: OCGEngine, msg_type: int) -> None:
 # Missed effect / counter family
 # ---------------------------------------------------------------------------
 def test_msg_missed_effect(eng: OCGEngine) -> None:
-    body = (loc_info(0, engine.LOCATION_MZONE, 1, engine.POS_FACEUP_ATTACK)
-            + u32(0xBEEF))
+    body = loc_info(0, engine.LOCATION_MZONE, 1, engine.POS_FACEUP_ATTACK) + u32(0xBEEF)
     out = _parse(eng, engine.MSG_MISSED_EFFECT, body)
     assert out["code"] == 0xBEEF
     assert out["loc"] == engine.LOCATION_MZONE
@@ -435,15 +524,25 @@ def test_msg_missed_effect(eng: OCGEngine) -> None:
 def test_msg_add_counter(eng: OCGEngine) -> None:
     body = u16(0x0001) + u8(0) + u8(engine.LOCATION_MZONE) + u8(2) + u16(3)
     out = _parse(eng, engine.MSG_ADD_COUNTER, body)
-    assert out == {"counter_type": 0x0001, "con": 0,
-                   "loc": engine.LOCATION_MZONE, "seq": 2, "count": 3}
+    assert out == {
+        "counter_type": 0x0001,
+        "con": 0,
+        "loc": engine.LOCATION_MZONE,
+        "seq": 2,
+        "count": 3,
+    }
 
 
 def test_msg_remove_counter(eng: OCGEngine) -> None:
     body = u16(0x0002) + u8(1) + u8(engine.LOCATION_MZONE) + u8(4) + u16(1)
     out = _parse(eng, engine.MSG_REMOVE_COUNTER, body)
-    assert out == {"counter_type": 0x0002, "con": 1,
-                   "loc": engine.LOCATION_MZONE, "seq": 4, "count": 1}
+    assert out == {
+        "counter_type": 0x0002,
+        "con": 1,
+        "loc": engine.LOCATION_MZONE,
+        "seq": 4,
+        "count": 1,
+    }
 
 
 # ---------------------------------------------------------------------------

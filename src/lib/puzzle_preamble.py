@@ -13,7 +13,6 @@ tools, action batching, and attempts go in the mode tail produced by
 
 from __future__ import annotations
 
-
 PUZZLE_PREAMBLE = """\
 THIS IS A PUZZLE — READ CAREFULLY
 - The puzzle is winnable on THIS TURN.  You must achieve a winning

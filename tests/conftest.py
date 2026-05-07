@@ -4,6 +4,7 @@ Adds the repo root to sys.path so tests can do
 ``from engine.core import ...`` / ``from providers import ...`` etc
 regardless of where pytest is invoked from.
 """
+
 from __future__ import annotations
 
 import sys

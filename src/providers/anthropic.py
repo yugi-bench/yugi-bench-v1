@@ -47,10 +47,10 @@ from .base import (
     ToolSchema,
 )
 
-
 # ---------------------------------------------------------------------------
 # SDK-shape helpers (Anthropic-specific)
 # ---------------------------------------------------------------------------
+
 
 def _extract_usage(usage_obj: Any) -> dict[str, Any]:
     """Pull token + cache accounting out of an Anthropic SDK Usage object.
@@ -95,8 +95,14 @@ def _extract_usage(usage_obj: Any) -> dict[str, Any]:
 
 def _extract_response_headers(stream_or_resp: Any) -> dict[str, str]:
     """Best-effort capture of HTTP response headers across SDK versions."""
-    candidates = ("response", "http_response", "_response", "raw_response",
-                  "_raw_response", "request_response")
+    candidates = (
+        "response",
+        "http_response",
+        "_response",
+        "raw_response",
+        "_raw_response",
+        "request_response",
+    )
     for attr in candidates:
         obj = getattr(stream_or_resp, attr, None)
         if obj is None:
@@ -162,12 +168,14 @@ def _to_anthropic_messages(messages: list[Message]) -> list[dict[str, Any]]:
             if text:
                 blocks.append({"type": "text", "text": text})
             for tc in m.get("tool_calls", []) or []:
-                blocks.append({
-                    "type": "tool_use",
-                    "id": tc["id"],
-                    "name": tc["name"],
-                    "input": tc.get("arguments", {}),
-                })
+                blocks.append(
+                    {
+                        "type": "tool_use",
+                        "id": tc["id"],
+                        "name": tc["name"],
+                        "input": tc.get("arguments", {}),
+                    }
+                )
             if not blocks:
                 blocks = [{"type": "text", "text": ""}]
             out.append({"role": "assistant", "content": blocks})
@@ -177,12 +185,14 @@ def _to_anthropic_messages(messages: list[Message]) -> list[dict[str, Any]]:
             tool_blocks = []
             while i < len(messages) and messages[i]["role"] == "tool":
                 tm = messages[i]
-                tool_blocks.append({
-                    "type": "tool_result",
-                    "tool_use_id": tm["tool_call_id"],
-                    "content": tm["content"],
-                    "is_error": tm.get("is_error", False),
-                })
+                tool_blocks.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tm["tool_call_id"],
+                        "content": tm["content"],
+                        "is_error": tm.get("is_error", False),
+                    }
+                )
                 i += 1
             # Absorb an immediately-following user message into the same
             # turn — Anthropic requires strict user/assistant alternation
@@ -194,8 +204,7 @@ def _to_anthropic_messages(messages: list[Message]) -> list[dict[str, Any]]:
                 if isinstance(uc, str):
                     tool_blocks.append({"type": "text", "text": uc})
                 else:
-                    tool_blocks.append({"type": "text",
-                                        "text": json.dumps(uc, default=str)})
+                    tool_blocks.append({"type": "text", "text": json.dumps(uc, default=str)})
                 i += 1
             out.append({"role": "user", "content": tool_blocks})
             continue
@@ -206,6 +215,7 @@ def _to_anthropic_messages(messages: list[Message]) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # The provider class
 # ---------------------------------------------------------------------------
+
 
 class AnthropicToolProvider(ToolCallingProvider):
     """Anthropic Messages-API provider for Opus 4.7 + later.
@@ -244,6 +254,7 @@ class AnthropicToolProvider(ToolCallingProvider):
         stream_event_log_path: str | None = None,
     ):
         import os
+
         try:
             import anthropic
         except ImportError as e:
@@ -285,11 +296,13 @@ class AnthropicToolProvider(ToolCallingProvider):
         # end-of-conversation.  See base.py docs for design rationale and
         # commit log for the empirical 60af8f49 cost data.
         cache_marker = {"type": "ephemeral", "ttl": "1h"}
-        system_blocks = [{
-            "type": "text",
-            "text": system,
-            "cache_control": cache_marker,
-        }]
+        system_blocks = [
+            {
+                "type": "text",
+                "text": system,
+                "cache_control": cache_marker,
+            }
+        ]
         cached_tools = [dict(t) for t in tools]
         if cached_tools:
             cached_tools[-1] = {**cached_tools[-1], "cache_control": cache_marker}
@@ -301,11 +314,13 @@ class AnthropicToolProvider(ToolCallingProvider):
                 last_block["cache_control"] = cache_marker
                 last["content"] = list(content[:-1]) + [last_block]
             elif isinstance(content, str):
-                last["content"] = [{
-                    "type": "text",
-                    "text": content,
-                    "cache_control": cache_marker,
-                }]
+                last["content"] = [
+                    {
+                        "type": "text",
+                        "text": content,
+                        "cache_control": cache_marker,
+                    }
+                ]
 
         create_kwargs: dict[str, Any] = dict(
             model=self.model,
@@ -344,9 +359,7 @@ class AnthropicToolProvider(ToolCallingProvider):
                                 "model": self.model,
                                 "data": _serialize_stream_event(ev),
                             }
-                            self._stream_event_log.write(
-                                json.dumps(payload, default=str) + "\n"
-                            )
+                            self._stream_event_log.write(json.dumps(payload, default=str) + "\n")
                         except Exception:  # noqa: BLE001
                             pass
             resp = stream.get_final_message()
@@ -363,21 +376,28 @@ class AnthropicToolProvider(ToolCallingProvider):
             if btype == "text":
                 text_parts.append(block.text)
             elif btype == "tool_use":
-                tool_calls.append(ToolCall(
-                    id=block.id, name=block.name,
-                    arguments=dict(block.input) if block.input else {},
-                ))
+                tool_calls.append(
+                    ToolCall(
+                        id=block.id,
+                        name=block.name,
+                        arguments=dict(block.input) if block.input else {},
+                    )
+                )
             elif btype == "thinking":
-                thinking_blocks.append({
-                    "type": "thinking",
-                    "thinking": block.thinking,
-                    "signature": block.signature,
-                })
+                thinking_blocks.append(
+                    {
+                        "type": "thinking",
+                        "thinking": block.thinking,
+                        "signature": block.signature,
+                    }
+                )
             elif btype == "redacted_thinking":
-                thinking_blocks.append({
-                    "type": "redacted_thinking",
-                    "data": block.data,
-                })
+                thinking_blocks.append(
+                    {
+                        "type": "redacted_thinking",
+                        "data": block.data,
+                    }
+                )
         return ModelTurn(
             text="".join(text_parts),
             tool_calls=tool_calls,

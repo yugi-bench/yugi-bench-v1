@@ -38,10 +38,12 @@ Usage:
   ./agent-mcp-eval/aggregate-results.py --runs-root /custom/path
   ./agent-mcp-eval/aggregate-results.py --since 2026-05-04T00-00-00
 """
+
 from __future__ import annotations
 
 import sys
 from pathlib import Path as _Path
+
 _REPO_ROOT = _Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "src"))
@@ -53,9 +55,8 @@ import json
 import os
 import sys
 from collections import Counter
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
 
 
 @dataclass
@@ -185,10 +186,22 @@ def _aggregate(runs_root: Path, since: str | None) -> list[SessionResult]:
 
 def _write_csv(out: Path, results: list[SessionResult]) -> None:
     fields = [
-        "puzzle_id", "agent", "started_at", "status", "winner", "termination",
-        "tool_calls_used", "auto_decline_count", "wallclock_seconds",
-        "final_lp", "image", "auto_opponent", "max_tool_calls",
-        "jsonl_event_count", "workspace", "error",
+        "puzzle_id",
+        "agent",
+        "started_at",
+        "status",
+        "winner",
+        "termination",
+        "tool_calls_used",
+        "auto_decline_count",
+        "wallclock_seconds",
+        "final_lp",
+        "image",
+        "auto_opponent",
+        "max_tool_calls",
+        "jsonl_event_count",
+        "workspace",
+        "error",
     ]
     with open(out, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=fields)
@@ -214,8 +227,7 @@ def _write_md(out: Path, results: list[SessionResult], counts: Counter) -> None:
             lines.append(f"| {k} | {counts[k]} |")
     lines += ["", "## Per-session detail", ""]
     lines += [
-        "| Puzzle | Status | Winner | Termination | Tool calls | "
-        "Wallclock (s) | LP | Started |",
+        "| Puzzle | Status | Winner | Termination | Tool calls | Wallclock (s) | LP | Started |",
         "|---|---|---:|---|---:|---:|---|---|",
     ]
     for r in sorted(results, key=lambda x: (x.status, x.puzzle_id)):
@@ -233,19 +245,27 @@ def _write_md(out: Path, results: list[SessionResult], counts: Counter) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--runs-root", default=None,
-                    help="Root directory of session workspaces. "
-                         "Defaults to $YUGI_RUNS_ROOT or ~/yugi-bench-runs.")
-    ap.add_argument("--since", default=None,
-                    help="Filter to workspaces with a started_at timestamp "
-                         ">= this value (lexicographic, ISO 'YYYY-MM-DDTHH-MM-SS').")
+    ap.add_argument(
+        "--runs-root",
+        default=None,
+        help="Root directory of session workspaces. "
+        "Defaults to $YUGI_RUNS_ROOT or ~/yugi-bench-runs.",
+    )
+    ap.add_argument(
+        "--since",
+        default=None,
+        help="Filter to workspaces with a started_at timestamp "
+        ">= this value (lexicographic, ISO 'YYYY-MM-DDTHH-MM-SS').",
+    )
     args = ap.parse_args(argv)
 
-    runs_root = Path(
-        args.runs_root
-        or os.environ.get("YUGI_RUNS_ROOT")
-        or (Path.home() / "yugi-bench-runs")
-    ).expanduser().resolve()
+    runs_root = (
+        Path(
+            args.runs_root or os.environ.get("YUGI_RUNS_ROOT") or (Path.home() / "yugi-bench-runs")
+        )
+        .expanduser()
+        .resolve()
+    )
 
     results = _aggregate(runs_root, args.since)
     if not results:
@@ -328,10 +348,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"    {agent_key:10s} {line}")
     if rerun_ids:
         print()
-        print(
-            f"  needs-rerun: {len(rerun_ids)} unique puzzle id(s) "
-            f"(see {incomplete_out})"
-        )
+        print(f"  needs-rerun: {len(rerun_ids)} unique puzzle id(s) (see {incomplete_out})")
         for st in sorted(NEEDS_RERUN):
             if rerun_by_status[st]:
                 print(f"    {st:12s} {len(rerun_by_status[st])}")

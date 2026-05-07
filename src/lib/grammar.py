@@ -24,7 +24,6 @@ from __future__ import annotations
 
 from engine.tools import TOOL_TO_HARNESS_METHOD, TOOLS
 
-
 _OPENING = """\
 ## Response Verbs
 
@@ -372,14 +371,11 @@ def _render_verb_list() -> str:
         schema = tool.get("input_schema") or {}
         props = schema.get("properties") or {}
         if props:
-            args_summary = ", ".join(
-                f"`{k}: {p.get('type', '?')}`" for k, p in props.items()
-            )
+            args_summary = ", ".join(f"`{k}: {p.get('type', '?')}`" for k, p in props.items())
             lines.append(f"  - args: {args_summary}")
     lines.append("")
     lines.append(
-        "Always pick the responder named by the pending decision — "
-        "other verbs will be rejected."
+        "Always pick the responder named by the pending decision — other verbs will be rejected."
     )
     return "\n".join(lines)
 
@@ -396,15 +392,14 @@ def render_action_grammar(mode: str = "bulk") -> str:
     """
     if mode not in ("bulk", "interactive"):
         raise ValueError(f"unknown grammar mode: {mode!r}")
-    chain_section = (
-        _CHAIN_TOLERANCE_BULK if mode == "bulk"
-        else _CHAIN_AUTO_DECLINE_INTERACTIVE
+    chain_section = _CHAIN_TOLERANCE_BULK if mode == "bulk" else _CHAIN_AUTO_DECLINE_INTERACTIVE
+    return "\n".join(
+        [
+            _OPENING,
+            _AUTO_OPPONENT,
+            chain_section,
+            _DECOMPOSITIONS,
+            _INDEX_SEMANTICS,
+            _render_verb_list(),
+        ]
     )
-    return "\n".join([
-        _OPENING,
-        _AUTO_OPPONENT,
-        chain_section,
-        _DECOMPOSITIONS,
-        _INDEX_SEMANTICS,
-        _render_verb_list(),
-    ])

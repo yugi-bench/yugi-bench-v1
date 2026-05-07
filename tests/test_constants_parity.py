@@ -10,6 +10,7 @@ Constants that are *intentionally* not exposed in Python (e.g. internal
 header guards, client-mode tokens irrelevant to the Python client) are
 listed in ``SKIP`` with a reason.
 """
+
 from __future__ import annotations
 
 import os
@@ -54,31 +55,33 @@ def _find_header() -> Path | None:
 _HEADER = _find_header()
 pytestmark = pytest.mark.skipif(
     _HEADER is None,
-    reason=("ocgapi_constants.h not found — set YGO_OCGAPI_HEADER or put a "
-            "sibling edopro/ocgcore/ tree next to this repo.  Constant "
-            "parity is a source-time check; not required at runtime."),
+    reason=(
+        "ocgapi_constants.h not found — set YGO_OCGAPI_HEADER or put a "
+        "sibling edopro/ocgcore/ tree next to this repo.  Constant "
+        "parity is a source-time check; not required at runtime."
+    ),
 )
 
 # Names in the header that are *not* required on the Python side.
 # These are compile-time-only tokens or aliases irrelevant to wire parity.
 SKIP: dict[str, str] = {
-    "OCGAPI_CONSTANTS_H":        "C header guard",
-    "ATTRIBUTE_ALL":             "derived alias",
-    "RACE_MAX":                  "derived alias",
-    "RACE_ALL":                  "derived alias",
-    "LOCATION_ONFIELD":          "derived alias (MZONE|SZONE)",
-    "POS_FACEUP":                "derived alias",
-    "POS_FACEDOWN":              "derived alias",
-    "POS_ATTACK":                "derived alias",
-    "POS_DEFENSE":               "derived alias",
+    "OCGAPI_CONSTANTS_H": "C header guard",
+    "ATTRIBUTE_ALL": "derived alias",
+    "RACE_MAX": "derived alias",
+    "RACE_ALL": "derived alias",
+    "LOCATION_ONFIELD": "derived alias (MZONE|SZONE)",
+    "POS_FACEUP": "derived alias",
+    "POS_FACEDOWN": "derived alias",
+    "POS_ATTACK": "derived alias",
+    "POS_DEFENSE": "derived alias",
     "EFFECT_CLIENT_MODE_NORMAL": "Lua-side effect marker, not wire-visible",
     "EFFECT_CLIENT_MODE_RESOLVE": "Lua-side effect marker, not wire-visible",
-    "EFFECT_CLIENT_MODE_RESET":  "Lua-side effect marker, not wire-visible",
-    "DUEL_MODE_MR1_FORB":        "forbidden-type bitmask, not a duel flag",
-    "DUEL_MODE_MR2_FORB":        "forbidden-type bitmask, not a duel flag",
-    "DUEL_MODE_MR3_FORB":        "forbidden-type bitmask, not a duel flag",
-    "DUEL_MODE_MR4_FORB":        "forbidden-type bitmask, not a duel flag",
-    "DUEL_MODE_MR5_FORB":        "forbidden-type bitmask, not a duel flag",
+    "EFFECT_CLIENT_MODE_RESET": "Lua-side effect marker, not wire-visible",
+    "DUEL_MODE_MR1_FORB": "forbidden-type bitmask, not a duel flag",
+    "DUEL_MODE_MR2_FORB": "forbidden-type bitmask, not a duel flag",
+    "DUEL_MODE_MR3_FORB": "forbidden-type bitmask, not a duel flag",
+    "DUEL_MODE_MR4_FORB": "forbidden-type bitmask, not a duel flag",
+    "DUEL_MODE_MR5_FORB": "forbidden-type bitmask, not a duel flag",
 }
 
 
@@ -126,9 +129,9 @@ def _parse_header(text: str) -> dict[str, str]:
     return out
 
 
-def _eval_define(name: str, defines: dict[str, str],
-                 resolved: dict[str, int],
-                 depth: int = 0) -> int:
+def _eval_define(
+    name: str, defines: dict[str, str], resolved: dict[str, int], depth: int = 0
+) -> int:
     """Resolve and evaluate a ``#define`` expression.
 
     References to other ``#define``s are substituted recursively. This is a
@@ -140,6 +143,7 @@ def _eval_define(name: str, defines: dict[str, str],
     if depth > 32:
         raise RecursionError(f"define cycle at {name}")
     expr = _c_to_py(defines[name])
+
     # Substitute identifier references.
     def _sub(m: re.Match) -> str:
         ref = m.group(0)
@@ -147,12 +151,13 @@ def _eval_define(name: str, defines: dict[str, str],
             val = _eval_define(ref, defines, resolved, depth + 1)
             return f"({val})"
         return ref
+
     subbed = re.sub(r"[A-Za-z_][A-Za-z0-9_]*", _sub, expr)
     # Any remaining non-numeric bareword is an error.
     try:
         val = eval(subbed, {"__builtins__": {}}, {})  # noqa: S307 — no untrusted input
     except Exception as exc:
-        raise ValueError(f"could not eval {name}={expr!r} -> {subbed!r}: {exc}")
+        raise ValueError(f"could not eval {name}={expr!r} -> {subbed!r}: {exc}") from exc
     if not isinstance(val, int):
         raise TypeError(f"{name} did not evaluate to int: {val!r}")
     resolved[name] = val
@@ -183,21 +188,21 @@ def expected() -> dict[str, int]:
 # ---------------------------------------------------------------------------
 _GROUPS = [
     ("LOCATION_", "location"),
-    ("POS_",      "position"),
-    ("TYPE_",     "card type"),
-    ("ATTRIBUTE_","attribute"),
-    ("RACE_",     "race"),
-    ("REASON_",   "reason"),
-    ("STATUS_",   "status"),
-    ("QUERY_",    "query"),
+    ("POS_", "position"),
+    ("TYPE_", "card type"),
+    ("ATTRIBUTE_", "attribute"),
+    ("RACE_", "race"),
+    ("REASON_", "reason"),
+    ("STATUS_", "status"),
+    ("QUERY_", "query"),
     ("LINK_MARKER_", "link marker"),
-    ("MSG_",      "message"),
-    ("HINT_",     "hint"),
-    ("CHINT_",    "card hint"),
-    ("PHINT_",    "player hint"),
-    ("PHASE_",    "phase"),
-    ("DUEL_",     "duel flag"),
-    ("OPCODE_",   "opcode"),
+    ("MSG_", "message"),
+    ("HINT_", "hint"),
+    ("CHINT_", "card hint"),
+    ("PHINT_", "player hint"),
+    ("PHASE_", "phase"),
+    ("DUEL_", "duel flag"),
+    ("OPCODE_", "opcode"),
 ]
 
 
@@ -218,13 +223,11 @@ def test_family_parity(prefix: str, family: str, expected: dict[str, int]) -> No
         py_val = getattr(engine, name)
         if header_val != py_val:
             mismatched.append((name, header_val, py_val))
-    assert not missing, (
-        f"[{family}] Python is missing {len(missing)} constant(s): "
-        + ", ".join(sorted(missing))
+    assert not missing, f"[{family}] Python is missing {len(missing)} constant(s): " + ", ".join(
+        sorted(missing)
     )
     assert not mismatched, "\n".join(
-        f"[{family}] {n}: header=0x{h:x} python=0x{p:x}"
-        for n, h, p in mismatched
+        f"[{family}] {n}: header=0x{h:x} python=0x{p:x}" for n, h, p in mismatched
     )
 
 
@@ -247,7 +250,7 @@ def test_ocg_version_exposed() -> None:
     # runtime version returned by the library instead. The library file may be
     # absent in CI — if so, skip this leg.
     try:
-        eng = engine.OCGEngine  # cheap: don't actually load the lib.
+        pass  # cheap: don't actually load the lib.
     except Exception:
         pytest.skip("engine module could not be loaded")
     assert header_major == 11, (

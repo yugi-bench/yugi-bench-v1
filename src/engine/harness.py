@@ -30,12 +30,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .core import (
-    AnnounceAttrib,
-    AnnounceCard,
-    AnnounceNumber,
-    AnnounceRace,
-    BattleCmd,
-    IdleCmd,
+    MSG_ANNOUNCE_ATTRIB,
+    MSG_ANNOUNCE_CARD,
+    MSG_ANNOUNCE_NUMBER,
+    MSG_ANNOUNCE_RACE,
     MSG_DAMAGE,
     MSG_LPUPDATE,
     MSG_NAME,
@@ -44,6 +42,7 @@ from .core import (
     MSG_PAY_LPCOST,
     MSG_RECOVER,
     MSG_RETRY,
+    MSG_ROCK_PAPER_SCISSORS,
     MSG_SELECT_BATTLECMD,
     MSG_SELECT_CARD,
     MSG_SELECT_CHAIN,
@@ -60,25 +59,23 @@ from .core import (
     MSG_SELECT_YESNO,
     MSG_SORT_CARD,
     MSG_SORT_CHAIN,
-    MSG_ANNOUNCE_RACE,
-    MSG_ANNOUNCE_ATTRIB,
-    MSG_ANNOUNCE_CARD,
-    MSG_ANNOUNCE_NUMBER,
-    MSG_ROCK_PAPER_SCISSORS,
     MSG_START,
     MSG_WIN,
     OCG_DUEL_STATUS_END,
+    AnnounceAttrib,
+    AnnounceNumber,
+    AnnounceRace,
+    BattleCmd,
+    IdleCmd,
     OCGEngine,
     SelectCard,
     SelectChain,
     SelectCounter,
-    SelectEffectYn,
     SelectOption,
     SelectPlace,
     SelectPosition,
     SelectSum,
     SelectUnselectCard,
-    SelectYesNo,
     SortCard,
     extract_lp_from_lua,
     is_select_message,
@@ -97,14 +94,15 @@ class InvalidResponseError(HarnessError):
 class PendingDecision:
     msg_type: int
     msg_name: str
-    parsed: Any            # one of the Select*/Announce* dataclasses / dicts
-    player: int            # 0 or 1 — whose turn it is to decide
+    parsed: Any  # one of the Select*/Announce* dataclasses / dicts
+    player: int  # 0 or 1 — whose turn it is to decide
     raw_events: list[dict] = field(default_factory=list)
 
 
 @dataclass
 class StepResult:
     """Result of one advance() call."""
+
     events: list[dict] = field(default_factory=list)
     pending: PendingDecision | None = None
     game_over: bool = False
@@ -115,6 +113,7 @@ class StepResult:
 @dataclass
 class DuelState:
     """Tracked per-duel facts the engine does not expose as a single query."""
+
     turn_player: int = 0
     turn_count: int = 0
     phase: int = 0
@@ -192,9 +191,7 @@ class Harness:
                         self._retry_count += 1
                         if self._retry_count > self.MAX_RETRIES:
                             pending_name = (
-                                self._pending.msg_name
-                                if self._pending is not None
-                                else "<cleared>"
+                                self._pending.msg_name if self._pending is not None else "<cleared>"
                             )
                             raise HarnessError(
                                 f"Engine rejected response (MSG_RETRY {self._retry_count} "
@@ -213,13 +210,17 @@ class Harness:
                             player=self._decision_player(parsed),
                             raw_events=events,
                         )
-                        return StepResult(events=events, pending=self._pending,
-                                          game_over=False)
+                        return StepResult(events=events, pending=self._pending, game_over=False)
                     events.append(self._event(msg_type, parsed))
 
             if status == OCG_DUEL_STATUS_END:
-                return StepResult(events=events, pending=None, game_over=True,
-                                  winner=self.state.winner, duel_ended=True)
+                return StepResult(
+                    events=events,
+                    pending=None,
+                    game_over=True,
+                    winner=self.state.winner,
+                    duel_ended=True,
+                )
 
         raise HarnessError(
             f"Duel did not produce a decision within {self.MAX_ITERATIONS} iterations"
@@ -234,7 +235,7 @@ class Harness:
     # ------------------------------------------------------------------
     def respond_select_battlecmd(self, command: str, index: int = 0) -> StepResult:
         """playerop.cpp:18 — response is ``(s << 16) | t`` where:
-          t=0 activate, t=1 attack, t=2 to_m2, t=3 to_ep.
+        t=0 activate, t=1 attack, t=2 to_m2, t=3 to_ep.
         """
         self._require(MSG_SELECT_BATTLECMD)
         cmd: BattleCmd = self._pending.parsed
@@ -243,8 +244,8 @@ class Harness:
 
     def respond_select_idlecmd(self, command: str, index: int = 0) -> StepResult:
         """playerop.cpp:69 — response is ``(s << 16) | t``:
-          t=0 summon, 1 sp_summon, 2 repos, 3 mset, 4 sset, 5 activate,
-          6 to_bp, 7 to_ep, 8 shuffle.
+        t=0 summon, 1 sp_summon, 2 repos, 3 mset, 4 sset, 5 activate,
+        6 to_bp, 7 to_ep, 8 shuffle.
         """
         self._require(MSG_SELECT_IDLECMD)
         cmd: IdleCmd = self._pending.parsed
@@ -278,9 +279,9 @@ class Harness:
         """
         self._require(MSG_SELECT_CARD)
         sc: SelectCard = self._pending.parsed
-        return self._respond_card_indices(indices, len(sc.cards), cancel,
-                                          min_=sc.min_, max_=sc.max_,
-                                          cancelable=sc.cancelable)
+        return self._respond_card_indices(
+            indices, len(sc.cards), cancel, min_=sc.min_, max_=sc.max_, cancelable=sc.cancelable
+        )
 
     def respond_select_card_codes(self, indices: list[int], *, cancel: bool = False) -> StepResult:
         """playerop.cpp:334 — same wire format as SelectCard but the
@@ -292,9 +293,9 @@ class Harness:
         """
         self._require(MSG_SELECT_CARD)
         sc: SelectCard = self._pending.parsed
-        return self._respond_card_indices(indices, len(sc.cards), cancel,
-                                          min_=sc.min_, max_=sc.max_,
-                                          cancelable=sc.cancelable)
+        return self._respond_card_indices(
+            indices, len(sc.cards), cancel, min_=sc.min_, max_=sc.max_, cancelable=sc.cancelable
+        )
 
     def respond_select_unselect_card(self, index: int | None) -> StepResult:
         """playerop.cpp:388 — one pick at a time:
@@ -336,7 +337,8 @@ class Harness:
         return self._respond_int(index)
 
     def respond_select_place(
-        self, places: list[tuple[int, int, int]],
+        self,
+        places: list[tuple[int, int, int]],
     ) -> StepResult:
         """playerop.cpp:504 — response is ``count × 3 bytes``, each
         place written as (player u8, location u8, sequence u8).
@@ -361,9 +363,7 @@ class Harness:
         self._require(MSG_SELECT_POSITION)
         sp: SelectPosition = self._pending.parsed
         if position not in (0x1, 0x2, 0x4, 0x8):
-            raise InvalidResponseError(
-                f"SelectPosition: invalid position 0x{position:x}"
-            )
+            raise InvalidResponseError(f"SelectPosition: invalid position 0x{position:x}")
         if not (position & sp.positions):
             raise InvalidResponseError(
                 f"SelectPosition: 0x{position:x} not in available mask 0x{sp.positions:x}"
@@ -374,9 +374,9 @@ class Harness:
         """playerop.cpp:639 — same wire format as SelectCard."""
         self._require(MSG_SELECT_TRIBUTE)
         sc: SelectCard = self._pending.parsed
-        return self._respond_card_indices(indices, len(sc.cards), cancel,
-                                          min_=sc.min_, max_=sc.max_,
-                                          cancelable=sc.cancelable)
+        return self._respond_card_indices(
+            indices, len(sc.cards), cancel, min_=sc.min_, max_=sc.max_, cancelable=sc.cancelable
+        )
 
     def respond_select_counter(self, counts: list[int]) -> StepResult:
         """playerop.cpp:704 — response is ``len(cards) × int16`` —
@@ -386,14 +386,11 @@ class Harness:
         sc: SelectCounter = self._pending.parsed
         if len(counts) != len(sc.cards):
             raise InvalidResponseError(
-                f"SelectCounter expects {len(sc.cards)} counts (one per card), "
-                f"got {len(counts)}"
+                f"SelectCounter expects {len(sc.cards)} counts (one per card), got {len(counts)}"
             )
         total = sum(counts)
         if total != sc.count:
-            raise InvalidResponseError(
-                f"SelectCounter: counts must sum to {sc.count}, got {total}"
-            )
+            raise InvalidResponseError(f"SelectCounter: counts must sum to {sc.count}, got {total}")
         for i, c in enumerate(counts):
             if c < 0 or c > sc.cards[i]["counter"]:
                 raise InvalidResponseError(
@@ -412,8 +409,12 @@ class Harness:
         self._require(MSG_SELECT_SUM)
         ss: SelectSum = self._pending.parsed
         return self._respond_card_indices(
-            indices, len(ss.optional_cards), cancel=False,
-            min_=ss.min_, max_=max(ss.min_, ss.max_), cancelable=False,
+            indices,
+            len(ss.optional_cards),
+            cancel=False,
+            min_=ss.min_,
+            max_=max(ss.min_, ss.max_),
+            cancelable=False,
         )
 
     def respond_sort_card(self, ordering: list[int] | None) -> StepResult:
@@ -435,9 +436,7 @@ class Harness:
         seen = set()
         for v in ordering:
             if v < 0 or v >= n or v in seen:
-                raise InvalidResponseError(
-                    f"SortCard ordering must be a permutation of 0..{n-1}"
-                )
+                raise InvalidResponseError(f"SortCard ordering must be a permutation of 0..{n - 1}")
             seen.add(v)
         buf = bytearray()
         for v in ordering:
@@ -550,8 +549,14 @@ class Harness:
             raise
 
     def _respond_card_indices(
-        self, indices: list[int], total_cards: int, cancel: bool,
-        *, min_: int, max_: int, cancelable: bool,
+        self,
+        indices: list[int],
+        total_cards: int,
+        cancel: bool,
+        *,
+        min_: int,
+        max_: int,
+        cancelable: bool,
     ) -> StepResult:
         """SelectCard-family wire format (type=0 form).
 
@@ -562,16 +567,13 @@ class Harness:
         """
         if cancel:
             if not cancelable and min_ > 0:
-                raise InvalidResponseError(
-                    "SelectCard: cannot cancel — prompt is not cancelable"
-                )
+                raise InvalidResponseError("SelectCard: cannot cancel — prompt is not cancelable")
             return self._respond_bytes(struct.pack("<i", -1))
         if len(set(indices)) != len(indices):
             raise InvalidResponseError("SelectCard: duplicate index in selection")
         if len(indices) < min_ or len(indices) > max_:
             raise InvalidResponseError(
-                f"SelectCard: selection of {len(indices)} outside allowed range "
-                f"[{min_}, {max_}]"
+                f"SelectCard: selection of {len(indices)} outside allowed range [{min_}, {max_}]"
             )
         for idx in indices:
             if idx < 0 or idx >= total_cards:
@@ -617,6 +619,7 @@ class Harness:
         enum so raw integers don't leak to the caller.
         """
         from .core import render_reason, render_win_reason
+
         base = {"msg_type": msg_type, "msg_name": MSG_NAME.get(msg_type, f"MSG_{msg_type}")}
         if isinstance(parsed, dict):
             base.update(parsed)
@@ -639,8 +642,8 @@ class Harness:
     def _idlecmd_encoding(command: str, index: int, cmd: IdleCmd) -> tuple[int, int]:
         simple = {
             "to_battle_phase": (6, cmd.can_battle_phase, "battle phase unavailable"),
-            "to_end_phase":    (7, cmd.can_end_phase,    "end phase unavailable"),
-            "shuffle_hand":    (8, cmd.can_shuffle,      "hand shuffle unavailable"),
+            "to_end_phase": (7, cmd.can_end_phase, "end phase unavailable"),
+            "shuffle_hand": (8, cmd.can_shuffle, "hand shuffle unavailable"),
         }
         if command in simple:
             t, allowed, msg = simple[command]
@@ -649,8 +652,12 @@ class Harness:
             return t, 0
 
         cat_map = {
-            "summon":     0, "sp_summon": 1, "repos":    2,
-            "set_monster":3, "set_spell": 4, "activate": 5,
+            "summon": 0,
+            "sp_summon": 1,
+            "repos": 2,
+            "set_monster": 3,
+            "set_spell": 4,
+            "activate": 5,
         }
         if command not in cat_map:
             raise InvalidResponseError(

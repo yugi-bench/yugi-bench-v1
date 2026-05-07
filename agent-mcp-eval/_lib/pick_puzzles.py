@@ -20,6 +20,7 @@ Strategies:
 Invocation:
     python3 _lib/pick_puzzles.py <strategy> <count> <dataset> <verified> <repo_root>
 """
+
 import json
 import random
 import sys
@@ -42,6 +43,7 @@ def main(argv: list[str] | None = None) -> int:
     sys.path.insert(0, str(Path(repo_root) / "src"))
     try:
         from dataset.build_benchmark import EXCLUDED_PUZZLES
+
         excluded = set(EXCLUDED_PUZZLES)
     except Exception:
         excluded = set()
@@ -74,14 +76,15 @@ def main(argv: list[str] | None = None) -> int:
             verified_ids: set[str] = set()
             if Path(verified).exists():
                 verified_ids = {
-                    json.loads(line)["instance_id"]
-                    for line in open(verified) if line.strip()
+                    json.loads(line)["instance_id"] for line in open(verified) if line.strip()
                 }
-            pool.sort(key=lambda d: (
-                0 if d["instance_id"] in verified_ids else 1,
-                _cx(d),
-                d["instance_id"],
-            ))
+            pool.sort(
+                key=lambda d: (
+                    0 if d["instance_id"] in verified_ids else 1,
+                    _cx(d),
+                    d["instance_id"],
+                )
+            )
         elif strategy == "random":
             random.seed(0)
             random.shuffle(pool)

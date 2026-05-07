@@ -3,6 +3,7 @@
 Catches import-level breakage (missing module, broken side-import, etc.)
 across every user-facing CLI. Pure-Python; no libocgcore needed.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -10,7 +11,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -32,6 +32,7 @@ CLI_TARGETS = [
 @pytest.mark.parametrize("argv", CLI_TARGETS, ids=lambda a: a[-1] if a[0] == "-m" else a[0])
 def test_cli_help_exits_zero(argv: list[str]):
     import os
+
     env = os.environ.copy()
     # src/ layout: add src/ to PYTHONPATH so `python -m engine.replay` etc.
     # find their packages.  Direct script paths (api-eval/runner.py etc.)
@@ -47,8 +48,7 @@ def test_cli_help_exits_zero(argv: list[str]):
     )
     label = argv[-1] if argv[0] == "-m" else argv[0]
     assert result.returncode == 0, (
-        f"{label} --help failed: rc={result.returncode}\n"
-        f"stderr: {result.stderr[:500]}"
+        f"{label} --help failed: rc={result.returncode}\nstderr: {result.stderr[:500]}"
     )
     combined = result.stdout + result.stderr
     assert "usage:" in combined.lower(), (

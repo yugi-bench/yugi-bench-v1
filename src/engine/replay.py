@@ -28,7 +28,6 @@ from __future__ import annotations
 import json
 import re
 
-
 # Action-list extraction from raw LLM text response.  Used by n-attempts
 # bulk mode in runner.py to parse a model output into the action list
 # this module then replays.
@@ -56,7 +55,7 @@ def extract_actions(text: str) -> list[dict]:
     last = text.rfind("]")
     if first != -1 and last > first:
         try:
-            return json.loads(text[first:last + 1])
+            return json.loads(text[first : last + 1])
         except json.JSONDecodeError:
             pass
     raise ValueError("no JSON action list found in response")
@@ -91,9 +90,9 @@ def classify_parse_failure(text: str) -> str:
 import argparse
 import sys
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
 
 # Allow direct script invocation (`python src/engine/replay.py ...`) by
 # putting src/ on sys.path so internal `from engine.X import …` resolves
@@ -105,7 +104,6 @@ if _SRC not in sys.path:
 
 from engine.core import (
     CARD_SCRIPT_DIR,
-    CardDB,
     DB_DIR,
     DYLIB_PATH,
     MSG_ANNOUNCE_ATTRIB,
@@ -129,8 +127,9 @@ from engine.core import (
     MSG_SELECT_YESNO,
     MSG_SORT_CARD,
     MSG_SORT_CHAIN,
-    OCGEngine,
     SCRIPT_DIR,
+    CardDB,
+    OCGEngine,
 )
 from engine.harness import (
     Harness,
@@ -140,8 +139,7 @@ from engine.harness import (
 )
 from engine.tools import TOOL_TO_HARNESS_METHOD, coerce_args
 
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_DATASET = REPO_ROOT / "data" / "yugioh_bench.jsonl"
 DEFAULT_SOLUTIONS = REPO_ROOT / "solutions"
 DEFAULT_RESULTS = REPO_ROOT / "results"
@@ -218,7 +216,7 @@ def replay_solution(
     """
     harness = Harness(engine)
     try:
-        first = harness.start(lua_setup)
+        harness.start(lua_setup)
     except Exception as e:  # noqa: BLE001
         return EvalResult(
             status="error",
@@ -281,10 +279,12 @@ def replay_solution(
             # Case 1: model's null-chain but engine isn't in a chain window.
             # The null chain is a no-op; silently skip it and try the next
             # action at the same pending position.
-            if (tool_name == "select_chain"
-                    and harness.pending.msg_name != "MSG_SELECT_CHAIN"
-                    and isinstance(args_for_skip, dict)
-                    and args_for_skip.get("index") is None):
+            if (
+                tool_name == "select_chain"
+                and harness.pending.msg_name != "MSG_SELECT_CHAIN"
+                and isinstance(args_for_skip, dict)
+                and args_for_skip.get("index") is None
+            ):
                 continue
             # Case 2: engine IS asking for a chain but model's next action
             # is NOT select_chain.  If the chain is optional (not forced),
@@ -297,10 +297,12 @@ def replay_solution(
             # gives us a forced chain.  This matches the runner's
             # _auto_decline_chains_until_real semantics, so replays of
             # interactive-mode traces stay aligned with the live engine path.
-            while (harness.pending is not None
-                   and harness.pending.msg_name == "MSG_SELECT_CHAIN"
-                   and tool_name != "select_chain"
-                   and not getattr(harness.pending.parsed, "forced", False)):
+            while (
+                harness.pending is not None
+                and harness.pending.msg_name == "MSG_SELECT_CHAIN"
+                and tool_name != "select_chain"
+                and not getattr(harness.pending.parsed, "forced", False)
+            ):
                 try:
                     harness.respond_select_chain(index=None)
                 except (InvalidResponseError, HarnessError):
@@ -372,11 +374,12 @@ def replay_solution(
     # mid-action — otherwise we report "incomplete" for runs that the
     # live engine actually resolved to a win.  Mirrors the same
     # forced-chain check used inside the action loop.
-    if (tolerant_chains and not harness.state.game_over
-            and harness.pending is not None):
-        while (harness.pending is not None
-               and harness.pending.msg_name == "MSG_SELECT_CHAIN"
-               and not getattr(harness.pending.parsed, "forced", False)):
+    if tolerant_chains and not harness.state.game_over and harness.pending is not None:
+        while (
+            harness.pending is not None
+            and harness.pending.msg_name == "MSG_SELECT_CHAIN"
+            and not getattr(harness.pending.parsed, "forced", False)
+        ):
             try:
                 harness.respond_select_chain(index=None)
             except (InvalidResponseError, HarnessError):
@@ -424,15 +427,18 @@ def _pending_summary(p: PendingDecision | None) -> dict | None:
 # loop lets the model drive both sides naturally — only the n-attempts
 # bulk replay path needs an auto-pilot for the opponent.
 
+
 def _auto_advance_opponent(harness: Harness, perspective: int) -> None:
     """Drain opponent-side decisions until pending.player == perspective
     or the game ends.  Safe to call at any point: if the current pending
     is already for ``perspective``, it's a no-op.
     """
     safety = 0
-    while (harness.pending is not None
-           and harness.pending.player != perspective
-           and not harness.state.game_over):
+    while (
+        harness.pending is not None
+        and harness.pending.player != perspective
+        and not harness.state.game_over
+    ):
         safety += 1
         if safety > 400:
             raise HarnessError("auto-opponent exceeded 400 consecutive decisions")
@@ -503,13 +509,13 @@ def _pick_passive_opponent_response(p: PendingDecision) -> tuple[str, dict]:
 
     if mt in (MSG_SELECT_PLACE, MSG_SELECT_DISFIELD):
         from engine.state import _available_places  # noqa: WPS437
+
         flag = getattr(d, "flag", 0)
         player = getattr(d, "player", p.player)
         places = _available_places(flag, player)
         min_ = getattr(d, "min_", 1)
         picks = [
-            {"player": pl["player"], "location": pl["location"],
-             "sequence": pl["sequence"]}
+            {"player": pl["player"], "location": pl["location"], "sequence": pl["sequence"]}
             for pl in places[:min_]
         ]
         return "select_place", {"places": picks}
@@ -680,12 +686,19 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         help="Directory of <instance_id>.json action-list files",
     )
-    ap.add_argument("--results", type=Path, default=None,
-                    help="Output path (default: results/<solutions-dir-name>.json)")
-    ap.add_argument("--only", action="append", default=None,
-                    help="Restrict to the given instance_id (repeatable)")
-    ap.add_argument("--perspective", type=int, default=0,
-                    help="Scoring player (0 or 1, default 0)")
+    ap.add_argument(
+        "--results",
+        type=Path,
+        default=None,
+        help="Output path (default: results/<solutions-dir-name>.json)",
+    )
+    ap.add_argument(
+        "--only",
+        action="append",
+        default=None,
+        help="Restrict to the given instance_id (repeatable)",
+    )
+    ap.add_argument("--perspective", type=int, default=0, help="Scoring player (0 or 1, default 0)")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
 
@@ -710,17 +723,19 @@ def main(argv: list[str] | None = None) -> int:
         if sol is None:
             counts["missing"] += 1
             per_instance[iid] = {"status": "missing"}
-            print(f"[{idx+1}/{len(instances)}] {iid}: MISSING", file=sys.stderr)
+            print(f"[{idx + 1}/{len(instances)}] {iid}: MISSING", file=sys.stderr)
             continue
         if isinstance(sol, str):
             counts["error"] += 1
             per_instance[iid] = {"status": "error", "error": sol}
-            print(f"[{idx+1}/{len(instances)}] {iid}: BAD FILE ({sol})", file=sys.stderr)
+            print(f"[{idx + 1}/{len(instances)}] {iid}: BAD FILE ({sol})", file=sys.stderr)
             continue
 
         t0 = time.time()
         result = evaluator.evaluate_one(
-            inst["lua_setup"], sol, perspective=args.perspective,
+            inst["lua_setup"],
+            sol,
+            perspective=args.perspective,
         )
         elapsed = round(time.time() - t0, 2)
         counts[result.status] = counts.get(result.status, 0) + 1
@@ -728,7 +743,7 @@ def main(argv: list[str] | None = None) -> int:
         row["elapsed"] = elapsed
         per_instance[iid] = row
         print(
-            f"[{idx+1}/{len(instances)}] {iid}: {result.status.upper()} "
+            f"[{idx + 1}/{len(instances)}] {iid}: {result.status.upper()} "
             f"({result.steps_applied}/{result.total_steps}, {elapsed}s)"
             + (f" | {result.error[:80]}" if result.error else ""),
             file=sys.stderr,

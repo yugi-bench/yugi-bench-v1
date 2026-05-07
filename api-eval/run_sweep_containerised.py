@@ -38,6 +38,7 @@ Per-puzzle JSONLs land at ``<results_root>/<puzzle_id>.jsonl``. After all
 runs complete, the driver writes ``<results_root>/_summary.json`` with
 the aggregate counts, matching the existing API-sweep summary shape.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -47,7 +48,7 @@ import os
 import sys
 import time
 from collections import Counter
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 # Allow `python api-eval/run_sweep_containerised.py` from repo root.
@@ -59,6 +60,7 @@ if str(_REPO_ROOT) not in sys.path:
 # ---------------------------------------------------------------------------
 # Per-puzzle result record
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class PuzzleResult:
@@ -87,6 +89,7 @@ class PuzzleResult:
 # Puzzle list resolution
 # ---------------------------------------------------------------------------
 
+
 def _load_dataset(dataset_path: Path) -> list[dict]:
     out = []
     with open(dataset_path) as fh:
@@ -102,6 +105,7 @@ def _excluded_puzzles() -> set[str]:
     """The 6 puzzles disqualified by the libocgcore SELECT_SUM bug."""
     try:
         from dataset.build_benchmark import EXCLUDED_PUZZLES
+
         return set(EXCLUDED_PUZZLES)
     except Exception:
         return set()
@@ -131,6 +135,7 @@ def _pick_puzzles(args, dataset: list[dict]) -> list[str]:
 # MCP client driving — one container, one puzzle
 # ---------------------------------------------------------------------------
 
+
 def _docker_args(args, puzzle_id: str) -> list[str]:
     """Build the docker run command for one puzzle.
 
@@ -149,10 +154,13 @@ def _docker_args(args, puzzle_id: str) -> list[str]:
     if "podman" in os.path.basename(docker_cmd):
         cmd += ["--userns=keep-id"]
     cmd += [
-        "-v", f"{args.results_root}:/work/results",
+        "-v",
+        f"{args.results_root}:/work/results",
         args.image_tag,
-        "--puzzle", puzzle_id,
-        "--max-tool-calls", str(args.max_tool_calls),
+        "--puzzle",
+        puzzle_id,
+        "--max-tool-calls",
+        str(args.max_tool_calls),
     ]
     # In replay mode, mirror engine.replay's auto_opponent=True default so
     # the containerised pipeline reproduces the same outcomes engine.replay
@@ -239,36 +247,43 @@ async def _run_one_puzzle(args, puzzle_id: str, sem: asyncio.Semaphore) -> Puzzl
 # Sweep entrypoint
 # ---------------------------------------------------------------------------
 
+
 async def _sweep(args) -> int:
     dataset = _load_dataset(_REPO_ROOT / "data" / "yugioh_bench.jsonl")
     puzzle_ids = _pick_puzzles(args, dataset)
     if not puzzle_ids:
-        print("no puzzles to run (check --puzzles / --limit / --mode replay "
-              "requires solutions/<id>.json)", file=sys.stderr)
+        print(
+            "no puzzles to run (check --puzzles / --limit / --mode replay "
+            "requires solutions/<id>.json)",
+            file=sys.stderr,
+        )
         return 2
 
     Path(args.results_root).mkdir(parents=True, exist_ok=True)
     sem = asyncio.Semaphore(args.concurrency)
 
-    print(f"[sweep] mode={args.mode} concurrency={args.concurrency} "
-          f"puzzles={len(puzzle_ids)} image={args.image_tag}", file=sys.stderr)
+    print(
+        f"[sweep] mode={args.mode} concurrency={args.concurrency} "
+        f"puzzles={len(puzzle_ids)} image={args.image_tag}",
+        file=sys.stderr,
+    )
     started = time.time()
-    tasks = [
-        asyncio.create_task(_run_one_puzzle(args, pid, sem)) for pid in puzzle_ids
-    ]
+    tasks = [asyncio.create_task(_run_one_puzzle(args, pid, sem)) for pid in puzzle_ids]
     results: list[PuzzleResult] = []
     for i, fut in enumerate(asyncio.as_completed(tasks), start=1):
         res = await fut
         results.append(res)
         status = (
-            f"WIN" if res.winner == 0 else
-            f"LOSS(winner={res.winner})" if res.termination == "game_over" else
-            res.termination or
-            f"ERR({res.error})" if res.error else "?"
+            "WIN"
+            if res.winner == 0
+            else f"LOSS(winner={res.winner})"
+            if res.termination == "game_over"
+            else res.termination or f"ERR({res.error})"
+            if res.error
+            else "?"
         )
         elapsed = res.wallclock_seconds
-        print(f"[{i}/{len(puzzle_ids)}] {res.puzzle_id} {status} ({elapsed}s)",
-              file=sys.stderr)
+        print(f"[{i}/{len(puzzle_ids)}] {res.puzzle_id} {status} ({elapsed}s)", file=sys.stderr)
 
     summary = _summarise(results, started)
     out = Path(args.results_root) / "_summary.json"
@@ -303,29 +318,42 @@ def _summarise(results: list[PuzzleResult], started: float) -> dict:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="run_sweep_containerised",
         description=__doc__.splitlines()[0],
     )
-    p.add_argument("--mode", choices=["replay", "stub"], default="replay",
-                   help="replay: drive from solutions/<id>.json (regression). "
-                        "stub: minimal MCP calls per puzzle (smoke).")
-    p.add_argument("--puzzles", default=None,
-                   help="Comma-separated puzzle_id list. "
-                        "Default = the full 217-puzzle dataset "
-                        "(intersected with solutions/ in --mode replay).")
-    p.add_argument("--limit", type=int, default=0,
-                   help="Cap the puzzle count (0 = no cap).")
+    p.add_argument(
+        "--mode",
+        choices=["replay", "stub"],
+        default="replay",
+        help="replay: drive from solutions/<id>.json (regression). "
+        "stub: minimal MCP calls per puzzle (smoke).",
+    )
+    p.add_argument(
+        "--puzzles",
+        default=None,
+        help="Comma-separated puzzle_id list. "
+        "Default = the full 217-puzzle dataset "
+        "(intersected with solutions/ in --mode replay).",
+    )
+    p.add_argument("--limit", type=int, default=0, help="Cap the puzzle count (0 = no cap).")
     p.add_argument("--concurrency", type=int, default=8)
     p.add_argument("--image-tag", default="yugi-bench-env:latest")
-    p.add_argument("--results-root", required=True,
-                   help="Host directory bind-mounted to /work/results in "
-                        "each container. Per-puzzle JSONLs land here.")
+    p.add_argument(
+        "--results-root",
+        required=True,
+        help="Host directory bind-mounted to /work/results in "
+        "each container. Per-puzzle JSONLs land here.",
+    )
     p.add_argument("--max-tool-calls", type=int, default=500)
-    p.add_argument("--docker-cmd", default=None,
-                   help="Container runtime binary (default: $DOCKER env var, "
-                        "else 'docker'). Set to 'podman' for rootless.")
+    p.add_argument(
+        "--docker-cmd",
+        default=None,
+        help="Container runtime binary (default: $DOCKER env var, "
+        "else 'docker'). Set to 'podman' for rootless.",
+    )
     return p.parse_args(argv)
 
 

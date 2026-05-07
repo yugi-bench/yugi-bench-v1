@@ -10,6 +10,7 @@ feeds it to the corresponding parser via ``OCGEngine._parse_single_message``.
 We bypass ``OCGEngine.__init__`` because the parsers are pure — they only
 read from a ``MessageReader`` and never touch ``self.lib``.
 """
+
 from __future__ import annotations
 
 import struct
@@ -34,10 +35,20 @@ def loc_info(con: int, loc: int, seq: int, pos: int) -> bytes:
     return struct.pack("<BBII", con, loc, seq, pos)
 
 
-def u8(v: int) -> bytes:  return struct.pack("<B", v)
-def u16(v: int) -> bytes: return struct.pack("<H", v)
-def u32(v: int) -> bytes: return struct.pack("<I", v)
-def u64(v: int) -> bytes: return struct.pack("<Q", v)
+def u8(v: int) -> bytes:
+    return struct.pack("<B", v)
+
+
+def u16(v: int) -> bytes:
+    return struct.pack("<H", v)
+
+
+def u32(v: int) -> bytes:
+    return struct.pack("<I", v)
+
+
+def u64(v: int) -> bytes:
+    return struct.pack("<Q", v)
 
 
 def _parse(eng: OCGEngine, msg_type: int, body: bytes):
@@ -66,12 +77,11 @@ def test_select_idle_cmd_all_categories(eng: OCGEngine) -> None:
         u32(0x55555) + u8(0) + u8(0x08) + u32(0x00000009),
     ]
     # cat 5: activate — code, con, loc, seq u32, desc u64, op-type u8
-    act = (u32(0x66666) + u8(0) + u8(0x08)
-           + u32(0x0000000A) + u64(0xDEADBEEF12345678) + u8(0))
+    act = u32(0x66666) + u8(0) + u8(0x08) + u32(0x0000000A) + u64(0xDEADBEEF12345678) + u8(0)
     body = u8(player)
     for card in cards:
         body += u32(1) + card  # each category prefixed by count=1
-    body += u32(1) + act       # activate prefix (u32 count) + one entry
+    body += u32(1) + act  # activate prefix (u32 count) + one entry
     body += u8(1) + u8(0) + u8(1)  # can_bp, can_ep, can_shuffle
 
     idle = _parse(eng, engine.MSG_SELECT_IDLECMD, body)
@@ -82,7 +92,7 @@ def test_select_idle_cmd_all_categories(eng: OCGEngine) -> None:
     cats = {o.category: o for o in idle.options}
     assert cats.keys() == {0, 1, 2, 3, 4, 5}
     assert cats[0].code == 0x11111 and cats[0].seq == 0x05
-    assert cats[2].seq == 0x07          # repos seq is u8
+    assert cats[2].seq == 0x07  # repos seq is u8
     assert cats[5].code == 0x66666 and cats[5].desc == 0xDEADBEEF12345678
 
 
@@ -96,14 +106,26 @@ def test_select_idle_cmd_all_categories(eng: OCGEngine) -> None:
 def test_select_battle_cmd(eng: OCGEngine) -> None:
     body = (
         u8(0)
-        + u32(1)                                           # activate count
-        + u32(0xABCD) + u8(0) + u8(0x04) + u32(3)
-        + u64(0x1122334455667788) + u8(0)
-        + u32(2)                                           # attack count
-        + u32(0x1000) + u8(0) + u8(0x04) + u8(0) + u8(1)
-        + u32(0x2000) + u8(0) + u8(0x04) + u8(1) + u8(0)
-        + u8(1)                                            # can_m2
-        + u8(0)                                            # can_ep
+        + u32(1)  # activate count
+        + u32(0xABCD)
+        + u8(0)
+        + u8(0x04)
+        + u32(3)
+        + u64(0x1122334455667788)
+        + u8(0)
+        + u32(2)  # attack count
+        + u32(0x1000)
+        + u8(0)
+        + u8(0x04)
+        + u8(0)
+        + u8(1)
+        + u32(0x2000)
+        + u8(0)
+        + u8(0x04)
+        + u8(1)
+        + u8(0)
+        + u8(1)  # can_m2
+        + u8(0)  # can_ep
     )
     bc = _parse(eng, engine.MSG_SELECT_BATTLECMD, body)
     assert bc.player == 0
@@ -122,16 +144,23 @@ def test_select_battle_cmd(eng: OCGEngine) -> None:
 #       [u32 code, loc_info]*.
 # ---------------------------------------------------------------------------
 def test_select_card_no_tribute(eng: OCGEngine) -> None:
-    body = (u8(1) + u8(1) + u32(1) + u32(3) + u32(2)
-            + u32(0x1234) + loc_info(0, 0x02, 1, 0x01)
-            + u32(0x5678) + loc_info(1, 0x04, 0, 0x01))
+    body = (
+        u8(1)
+        + u8(1)
+        + u32(1)
+        + u32(3)
+        + u32(2)
+        + u32(0x1234)
+        + loc_info(0, 0x02, 1, 0x01)
+        + u32(0x5678)
+        + loc_info(1, 0x04, 0, 0x01)
+    )
     sc = _parse(eng, engine.MSG_SELECT_CARD, body)
     assert sc.player == 1
     assert sc.cancelable is True
     assert sc.min_ == 1 and sc.max_ == 3
     assert len(sc.cards) == 2
-    assert sc.cards[0] == {"code": 0x1234, "con": 0, "loc": 0x02,
-                           "seq": 1, "pos": 0x01, "index": 0}
+    assert sc.cards[0] == {"code": 0x1234, "con": 0, "loc": 0x02, "seq": 1, "pos": 0x01, "index": 0}
     assert sc.is_tribute is False
 
 
@@ -141,8 +170,7 @@ def test_select_card_no_tribute(eng: OCGEngine) -> None:
 # the parser discards and sets pos=0.
 # ---------------------------------------------------------------------------
 def test_select_tribute(eng: OCGEngine) -> None:
-    body = (u8(0) + u8(0) + u32(1) + u32(1) + u32(1)
-            + u32(0xAA) + u8(0) + u8(0x04) + u32(2) + u8(3))
+    body = u8(0) + u8(0) + u32(1) + u32(1) + u32(1) + u32(0xAA) + u8(0) + u8(0x04) + u32(2) + u8(3)
     sc = _parse(eng, engine.MSG_SELECT_TRIBUTE, body)
     assert sc.is_tribute is True
     assert sc.cards[0]["pos"] == 0
@@ -156,11 +184,18 @@ def test_select_tribute(eng: OCGEngine) -> None:
 #       [u32 code, loc_info, u64 desc, u8 client_mode]*.
 # ---------------------------------------------------------------------------
 def test_select_chain(eng: OCGEngine) -> None:
-    body = (u8(0) + u8(1) + u8(1)               # player, specount, forced
-            + u32(0xAAAA) + u32(0xBBBB)          # hint1, hint2
-            + u32(1)                             # count
-            + u32(0x42) + loc_info(0, 0x08, 3, 0x01)
-            + u64(0x1234567890ABCDEF) + u8(0))
+    body = (
+        u8(0)
+        + u8(1)
+        + u8(1)  # player, specount, forced
+        + u32(0xAAAA)
+        + u32(0xBBBB)  # hint1, hint2
+        + u32(1)  # count
+        + u32(0x42)
+        + loc_info(0, 0x08, 3, 0x01)
+        + u64(0x1234567890ABCDEF)
+        + u8(0)
+    )
     sc = _parse(eng, engine.MSG_SELECT_CHAIN, body)
     assert sc.player == 0 and sc.forced is True
     assert sc.cards[0]["desc"] == 0x1234567890ABCDEF
@@ -174,9 +209,7 @@ def test_select_chain(eng: OCGEngine) -> None:
 # Wire: u8 player, u32 code, loc_info, u64 desc.
 # ---------------------------------------------------------------------------
 def test_select_effect_yn(eng: OCGEngine) -> None:
-    body = (u8(1) + u32(0xDEAD)
-            + loc_info(1, 0x04, 2, engine.POS_FACEUP_ATTACK)
-            + u64(0xCAFEBABE))
+    body = u8(1) + u32(0xDEAD) + loc_info(1, 0x04, 2, engine.POS_FACEUP_ATTACK) + u64(0xCAFEBABE)
     yn = _parse(eng, engine.MSG_SELECT_EFFECTYN, body)
     assert yn.player == 1 and yn.code == 0xDEAD
     assert yn.desc == 0xCAFEBABE
@@ -215,8 +248,7 @@ def test_select_position(eng: OCGEngine) -> None:
 # SELECT_PLACE / SELECT_DISFIELD — playerop.cpp:504-596
 # Wire: u8 player, u8 min, u32 field_mask (per-controller zones packed).
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize("msg", [engine.MSG_SELECT_PLACE,
-                                  engine.MSG_SELECT_DISFIELD])
+@pytest.mark.parametrize("msg", [engine.MSG_SELECT_PLACE, engine.MSG_SELECT_DISFIELD])
 def test_select_place(msg: int, eng: OCGEngine) -> None:
     body = u8(0) + u8(1) + u32(0x0000001F)
     sp = _parse(eng, msg, body)
@@ -232,11 +264,16 @@ def test_select_place(msg: int, eng: OCGEngine) -> None:
 #       u32 optional_count, ...same tail...
 # ---------------------------------------------------------------------------
 def test_select_sum(eng: OCGEngine) -> None:
-    mandatory = (u32(0x1) + loc_info(0, 0x04, 0, 0x01) + u32(4))
-    optional = (u32(0x2) + loc_info(0, 0x04, 1, 0x01) + u32(3)
-                + u32(0x3) + loc_info(0, 0x04, 2, 0x01) + u32(5))
-    body = (u8(0) + u8(0) + u32(8) + u32(1) + u32(5)
-            + u32(1) + mandatory + u32(2) + optional)
+    mandatory = u32(0x1) + loc_info(0, 0x04, 0, 0x01) + u32(4)
+    optional = (
+        u32(0x2)
+        + loc_info(0, 0x04, 1, 0x01)
+        + u32(3)
+        + u32(0x3)
+        + loc_info(0, 0x04, 2, 0x01)
+        + u32(5)
+    )
+    body = u8(0) + u8(0) + u32(8) + u32(1) + u32(5) + u32(1) + mandatory + u32(2) + optional
     ss = _parse(eng, engine.MSG_SELECT_SUM, body)
     assert ss.player == 0 and ss.mode == 0 and ss.sumval == 8
     assert ss.min_ == 1 and ss.max_ == 5
@@ -252,9 +289,19 @@ def test_select_sum(eng: OCGEngine) -> None:
 #       u32 already_count, [u32 code, loc_info]*.
 # ---------------------------------------------------------------------------
 def test_select_unselect_card(eng: OCGEngine) -> None:
-    body = (u8(0) + u8(0) + u8(1) + u32(1) + u32(1)
-            + u32(1) + u32(0x1) + loc_info(0, 0x04, 0, 0x01)
-            + u32(1) + u32(0x2) + loc_info(0, 0x04, 1, 0x01))
+    body = (
+        u8(0)
+        + u8(0)
+        + u8(1)
+        + u32(1)
+        + u32(1)
+        + u32(1)
+        + u32(0x1)
+        + loc_info(0, 0x04, 0, 0x01)
+        + u32(1)
+        + u32(0x2)
+        + loc_info(0, 0x04, 1, 0x01)
+    )
     su = _parse(eng, engine.MSG_SELECT_UNSELECT_CARD, body)
     assert su.player == 0
     assert su.finishable is False
@@ -269,9 +316,22 @@ def test_select_unselect_card(eng: OCGEngine) -> None:
 #       [u32 code, u8 con, u8 loc, u8 seq, u16 counter]*.
 # ---------------------------------------------------------------------------
 def test_select_counter(eng: OCGEngine) -> None:
-    body = (u8(0) + u16(0x10) + u16(3) + u32(2)
-            + u32(0x1) + u8(0) + u8(0x04) + u8(0) + u16(2)
-            + u32(0x2) + u8(0) + u8(0x04) + u8(1) + u16(1))
+    body = (
+        u8(0)
+        + u16(0x10)
+        + u16(3)
+        + u32(2)
+        + u32(0x1)
+        + u8(0)
+        + u8(0x04)
+        + u8(0)
+        + u16(2)
+        + u32(0x2)
+        + u8(0)
+        + u8(0x04)
+        + u8(1)
+        + u16(1)
+    )
     sc = _parse(eng, engine.MSG_SELECT_COUNTER, body)
     assert sc.player == 0
     assert sc.counter_type == 0x10 and sc.count == 3
@@ -286,9 +346,18 @@ def test_select_counter(eng: OCGEngine) -> None:
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("msg", [engine.MSG_SORT_CARD, engine.MSG_SORT_CHAIN])
 def test_sort_card(msg: int, eng: OCGEngine) -> None:
-    body = (u8(0) + u32(2)
-            + u32(0xAA) + u8(0) + u32(0x00000004) + u32(0)
-            + u32(0xBB) + u8(0) + u32(0x00000004) + u32(1))
+    body = (
+        u8(0)
+        + u32(2)
+        + u32(0xAA)
+        + u8(0)
+        + u32(0x00000004)
+        + u32(0)
+        + u32(0xBB)
+        + u8(0)
+        + u32(0x00000004)
+        + u32(1)
+    )
     s = _parse(eng, msg, body)
     assert s.player == 0
     assert [c["code"] for c in s.cards] == [0xAA, 0xBB]
@@ -330,10 +399,7 @@ def test_announce_attrib(eng: OCGEngine) -> None:
 # Wire: u8 player, u8 count, u64 opcodes[count].
 # ---------------------------------------------------------------------------
 def test_announce_card(eng: OCGEngine) -> None:
-    body = (u8(0) + u8(3)
-            + u64(engine.OPCODE_ISCODE)
-            + u64(0x12345678)
-            + u64(engine.OPCODE_OR))
+    body = u8(0) + u8(3) + u64(engine.OPCODE_ISCODE) + u64(0x12345678) + u64(engine.OPCODE_OR)
     ac = _parse(eng, engine.MSG_ANNOUNCE_CARD, body)
     assert ac.player == 0
     assert ac.opcodes == [engine.OPCODE_ISCODE, 0x12345678, engine.OPCODE_OR]
@@ -353,13 +419,16 @@ def test_announce_number(eng: OCGEngine) -> None:
 # Round-trip: every SELECT/ANNOUNCE msg type must parse *something*, never
 # return ``{"raw": ...}``. Guards against accidental dispatcher regression.
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize("msg,sample", [
-    (engine.MSG_SELECT_YESNO,  u8(0) + u64(0)),
-    (engine.MSG_SELECT_OPTION, u8(0) + u8(0)),
-    (engine.MSG_SELECT_PLACE,  u8(0) + u8(1) + u32(0)),
-    (engine.MSG_SELECT_DISFIELD, u8(0) + u8(1) + u32(0)),
-    (engine.MSG_ROCK_PAPER_SCISSORS, u8(0)),
-])
+@pytest.mark.parametrize(
+    "msg,sample",
+    [
+        (engine.MSG_SELECT_YESNO, u8(0) + u64(0)),
+        (engine.MSG_SELECT_OPTION, u8(0) + u8(0)),
+        (engine.MSG_SELECT_PLACE, u8(0) + u8(1) + u32(0)),
+        (engine.MSG_SELECT_DISFIELD, u8(0) + u8(1) + u32(0)),
+        (engine.MSG_ROCK_PAPER_SCISSORS, u8(0)),
+    ],
+)
 def test_no_raw_fallback_for_selects(msg: int, sample: bytes, eng: OCGEngine) -> None:
     out = _parse(eng, msg, sample)
     # The default branch returns ``{"raw": ...}``; structured parsers

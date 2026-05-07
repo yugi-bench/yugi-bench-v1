@@ -11,6 +11,7 @@ Each ``advance()`` call after responding normally drains queued messages.
 To avoid chaining into the harness's ``advance()`` loop we patch it to a
 no-op after the initial pending-decision stub is installed.
 """
+
 from __future__ import annotations
 
 import struct
@@ -37,7 +38,7 @@ from engine.core import (
     SelectUnselectCard,
     SortCard,
 )
-from engine.harness import Harness, InvalidResponseError, PendingDecision, StepResult
+from engine.harness import Harness, HarnessError, InvalidResponseError, PendingDecision, StepResult
 
 
 # ---------------------------------------------------------------------------
@@ -87,12 +88,18 @@ def _pend(harness: Harness, msg_type: int, parsed) -> None:
 # rock-paper-scissors — all single ``int32`` responses.
 # ---------------------------------------------------------------------------
 def test_respond_effect_yn(harness: Harness) -> None:
-    _pend(harness, engine.MSG_SELECT_EFFECTYN,
-          engine.SelectEffectYn(player=0, code=1, con=0, loc=0, seq=0, pos=0, desc=0))
+    _pend(
+        harness,
+        engine.MSG_SELECT_EFFECTYN,
+        engine.SelectEffectYn(player=0, code=1, con=0, loc=0, seq=0, pos=0, desc=0),
+    )
     harness.respond_select_effectyn(True)
     assert harness.engine.last == struct.pack("<i", 1)
-    _pend(harness, engine.MSG_SELECT_EFFECTYN,
-          engine.SelectEffectYn(player=0, code=1, con=0, loc=0, seq=0, pos=0, desc=0))
+    _pend(
+        harness,
+        engine.MSG_SELECT_EFFECTYN,
+        engine.SelectEffectYn(player=0, code=1, con=0, loc=0, seq=0, pos=0, desc=0),
+    )
     harness.respond_select_effectyn(False)
     assert harness.engine.last == struct.pack("<i", 0)
 
@@ -116,37 +123,49 @@ def test_respond_option_out_of_range(harness: Harness) -> None:
 
 
 def test_respond_position(harness: Harness) -> None:
-    _pend(harness, engine.MSG_SELECT_POSITION,
-          SelectPosition(player=0, code=0, positions=engine.POS_FACEUP_ATTACK
-                         | engine.POS_FACEDOWN_DEFENSE))
+    _pend(
+        harness,
+        engine.MSG_SELECT_POSITION,
+        SelectPosition(
+            player=0, code=0, positions=engine.POS_FACEUP_ATTACK | engine.POS_FACEDOWN_DEFENSE
+        ),
+    )
     harness.respond_select_position(engine.POS_FACEUP_ATTACK)
     assert harness.engine.last == struct.pack("<i", engine.POS_FACEUP_ATTACK)
 
 
 def test_respond_position_rejects_unavailable(harness: Harness) -> None:
-    _pend(harness, engine.MSG_SELECT_POSITION,
-          SelectPosition(player=0, code=0, positions=engine.POS_FACEUP_ATTACK))
+    _pend(
+        harness,
+        engine.MSG_SELECT_POSITION,
+        SelectPosition(player=0, code=0, positions=engine.POS_FACEUP_ATTACK),
+    )
     with pytest.raises(InvalidResponseError):
         harness.respond_select_position(engine.POS_FACEDOWN_DEFENSE)
 
 
 def test_respond_chain_decline(harness: Harness) -> None:
-    _pend(harness, engine.MSG_SELECT_CHAIN,
-          SelectChain(player=0, forced=False, cards=[{"index": 0}]))
+    _pend(
+        harness, engine.MSG_SELECT_CHAIN, SelectChain(player=0, forced=False, cards=[{"index": 0}])
+    )
     harness.respond_select_chain(None)
     assert harness.engine.last == struct.pack("<i", -1)
 
 
 def test_respond_chain_forced_cannot_decline(harness: Harness) -> None:
-    _pend(harness, engine.MSG_SELECT_CHAIN,
-          SelectChain(player=0, forced=True, cards=[{"index": 0}]))
+    _pend(
+        harness, engine.MSG_SELECT_CHAIN, SelectChain(player=0, forced=True, cards=[{"index": 0}])
+    )
     with pytest.raises(InvalidResponseError):
         harness.respond_select_chain(None)
 
 
 def test_respond_chain_select(harness: Harness) -> None:
-    _pend(harness, engine.MSG_SELECT_CHAIN,
-          SelectChain(player=0, forced=False, cards=[{"index": 0}, {"index": 1}]))
+    _pend(
+        harness,
+        engine.MSG_SELECT_CHAIN,
+        SelectChain(player=0, forced=False, cards=[{"index": 0}, {"index": 1}]),
+    )
     harness.respond_select_chain(1)
     assert harness.engine.last == struct.pack("<i", 1)
 
@@ -158,8 +177,7 @@ def test_respond_announce_card(harness: Harness) -> None:
 
 
 def test_respond_announce_number(harness: Harness) -> None:
-    _pend(harness, engine.MSG_ANNOUNCE_NUMBER,
-          AnnounceNumber(player=0, numbers=[1, 2, 3]))
+    _pend(harness, engine.MSG_ANNOUNCE_NUMBER, AnnounceNumber(player=0, numbers=[1, 2, 3]))
     harness.respond_announce_number(2)
     assert harness.engine.last == struct.pack("<i", 2)
 
@@ -184,8 +202,9 @@ def test_respond_rock_paper_scissors_invalid(harness: Harness) -> None:
 # ---------------------------------------------------------------------------
 def test_respond_idle_cmd_summon(harness: Harness) -> None:
     opt = IdleCmdOption(category=0, index=2, code=0, con=0, loc=0, seq=0)
-    idle = IdleCmd(player=0, options=[opt],
-                   can_battle_phase=True, can_end_phase=True, can_shuffle=True)
+    idle = IdleCmd(
+        player=0, options=[opt], can_battle_phase=True, can_end_phase=True, can_shuffle=True
+    )
     _pend(harness, engine.MSG_SELECT_IDLECMD, idle)
     harness.respond_select_idlecmd("summon", 0)
     expected = struct.pack("<i", (2 << 16) | 0)  # s=index=2, t=summon=0
@@ -193,16 +212,18 @@ def test_respond_idle_cmd_summon(harness: Harness) -> None:
 
 
 def test_respond_idle_cmd_to_battle_phase(harness: Harness) -> None:
-    idle = IdleCmd(player=0, options=[],
-                   can_battle_phase=True, can_end_phase=True, can_shuffle=True)
+    idle = IdleCmd(
+        player=0, options=[], can_battle_phase=True, can_end_phase=True, can_shuffle=True
+    )
     _pend(harness, engine.MSG_SELECT_IDLECMD, idle)
     harness.respond_select_idlecmd("to_battle_phase")
     assert harness.engine.last == struct.pack("<i", 6)  # t=6, s=0
 
 
 def test_respond_idle_cmd_to_end_phase_disabled(harness: Harness) -> None:
-    idle = IdleCmd(player=0, options=[], can_battle_phase=True,
-                   can_end_phase=False, can_shuffle=False)
+    idle = IdleCmd(
+        player=0, options=[], can_battle_phase=True, can_end_phase=False, can_shuffle=False
+    )
     _pend(harness, engine.MSG_SELECT_IDLECMD, idle)
     with pytest.raises(InvalidResponseError):
         harness.respond_select_idlecmd("to_end_phase")
@@ -227,12 +248,11 @@ def test_respond_battle_cmd_to_m2(harness: Harness) -> None:
 # SELECT_CARD family — cancel path, multi-index path, range errors.
 # Wire: int32 type (0 or -1), uint32 count, uint32[count] indices.
 # ---------------------------------------------------------------------------
-def _mk_select_card(n: int, min_: int, max_: int,
-                    cancelable: bool = False) -> SelectCard:
-    cards = [{"code": i, "con": 0, "loc": 0x02, "seq": i, "pos": 0, "index": i}
-             for i in range(n)]
-    return SelectCard(player=0, cancelable=cancelable,
-                      min_=min_, max_=max_, cards=cards, is_tribute=False)
+def _mk_select_card(n: int, min_: int, max_: int, cancelable: bool = False) -> SelectCard:
+    cards = [{"code": i, "con": 0, "loc": 0x02, "seq": i, "pos": 0, "index": i} for i in range(n)]
+    return SelectCard(
+        player=0, cancelable=cancelable, min_=min_, max_=max_, cards=cards, is_tribute=False
+    )
 
 
 def test_respond_select_card_one(harness: Harness) -> None:
@@ -282,7 +302,11 @@ def test_respond_select_card_out_of_range(harness: Harness) -> None:
 # ---------------------------------------------------------------------------
 def test_respond_select_unselect_pick(harness: Harness) -> None:
     su = SelectUnselectCard(
-        player=0, finishable=False, cancelable=True, min_=1, max_=1,
+        player=0,
+        finishable=False,
+        cancelable=True,
+        min_=1,
+        max_=1,
         selectable_cards=[{"index": 0}, {"index": 1}],
         selected_cards=[],
     )
@@ -293,8 +317,13 @@ def test_respond_select_unselect_pick(harness: Harness) -> None:
 
 def test_respond_select_unselect_cancel(harness: Harness) -> None:
     su = SelectUnselectCard(
-        player=0, finishable=True, cancelable=False, min_=1, max_=1,
-        selectable_cards=[{"index": 0}], selected_cards=[],
+        player=0,
+        finishable=True,
+        cancelable=False,
+        min_=1,
+        max_=1,
+        selectable_cards=[{"index": 0}],
+        selected_cards=[],
     )
     _pend(harness, engine.MSG_SELECT_UNSELECT_CARD, su)
     harness.respond_select_unselect_card(None)
@@ -303,8 +332,13 @@ def test_respond_select_unselect_cancel(harness: Harness) -> None:
 
 def test_respond_select_unselect_cannot_cancel(harness: Harness) -> None:
     su = SelectUnselectCard(
-        player=0, finishable=False, cancelable=False, min_=1, max_=1,
-        selectable_cards=[{"index": 0}], selected_cards=[],
+        player=0,
+        finishable=False,
+        cancelable=False,
+        min_=1,
+        max_=1,
+        selectable_cards=[{"index": 0}],
+        selected_cards=[],
     )
     _pend(harness, engine.MSG_SELECT_UNSELECT_CARD, su)
     with pytest.raises(InvalidResponseError):
@@ -335,7 +369,9 @@ def test_respond_select_place_wrong_count(harness: Harness) -> None:
 # ---------------------------------------------------------------------------
 def test_respond_select_counter(harness: Harness) -> None:
     sc = SelectCounter(
-        player=0, counter_type=0x10, count=3,
+        player=0,
+        counter_type=0x10,
+        count=3,
         cards=[{"counter": 2, "index": 0}, {"counter": 2, "index": 1}],
     )
     _pend(harness, engine.MSG_SELECT_COUNTER, sc)
@@ -345,7 +381,9 @@ def test_respond_select_counter(harness: Harness) -> None:
 
 def test_respond_select_counter_wrong_sum(harness: Harness) -> None:
     sc = SelectCounter(
-        player=0, counter_type=0x10, count=3,
+        player=0,
+        counter_type=0x10,
+        count=3,
         cards=[{"counter": 2, "index": 0}, {"counter": 2, "index": 1}],
     )
     _pend(harness, engine.MSG_SELECT_COUNTER, sc)
@@ -355,7 +393,9 @@ def test_respond_select_counter_wrong_sum(harness: Harness) -> None:
 
 def test_respond_select_counter_exceeds_card(harness: Harness) -> None:
     sc = SelectCounter(
-        player=0, counter_type=0x10, count=3,
+        player=0,
+        counter_type=0x10,
+        count=3,
         cards=[{"counter": 2, "index": 0}, {"counter": 5, "index": 1}],
     )
     _pend(harness, engine.MSG_SELECT_COUNTER, sc)
@@ -368,7 +408,11 @@ def test_respond_select_counter_exceeds_card(harness: Harness) -> None:
 # ---------------------------------------------------------------------------
 def test_respond_select_sum(harness: Harness) -> None:
     ss = SelectSum(
-        player=0, mode=0, sumval=8, min_=1, max_=2,
+        player=0,
+        mode=0,
+        sumval=8,
+        min_=1,
+        max_=2,
         mandatory_cards=[],
         optional_cards=[{"index": i, "code": i, "op_param": 4} for i in range(3)],
     )
@@ -409,9 +453,9 @@ def test_respond_sort_card_non_permutation(harness: Harness) -> None:
 # ANNOUNCE_ATTRIBUTE — playerop.cpp:949 — response is uint32 mask.
 # ---------------------------------------------------------------------------
 def test_respond_announce_race(harness: Harness) -> None:
-    ar = AnnounceRace(player=0, count=2,
-                      available=engine.RACE_DRAGON | engine.RACE_BEAST
-                               | engine.RACE_WARRIOR)
+    ar = AnnounceRace(
+        player=0, count=2, available=engine.RACE_DRAGON | engine.RACE_BEAST | engine.RACE_WARRIOR
+    )
     _pend(harness, engine.MSG_ANNOUNCE_RACE, ar)
     picked = engine.RACE_DRAGON | engine.RACE_WARRIOR
     harness.respond_announce_race(picked)
@@ -433,16 +477,14 @@ def test_respond_announce_race_outside_available(harness: Harness) -> None:
 
 
 def test_respond_announce_attribute(harness: Harness) -> None:
-    aa = AnnounceAttrib(player=0, count=1,
-                        available=engine.ATTRIBUTE_LIGHT | engine.ATTRIBUTE_DARK)
+    aa = AnnounceAttrib(player=0, count=1, available=engine.ATTRIBUTE_LIGHT | engine.ATTRIBUTE_DARK)
     _pend(harness, engine.MSG_ANNOUNCE_ATTRIB, aa)
     harness.respond_announce_attribute(engine.ATTRIBUTE_LIGHT)
     assert harness.engine.last == struct.pack("<I", engine.ATTRIBUTE_LIGHT)
 
 
 def test_respond_announce_attribute_rejects_bit_outside(harness: Harness) -> None:
-    aa = AnnounceAttrib(player=0, count=1,
-                        available=engine.ATTRIBUTE_LIGHT)
+    aa = AnnounceAttrib(player=0, count=1, available=engine.ATTRIBUTE_LIGHT)
     _pend(harness, engine.MSG_ANNOUNCE_ATTRIB, aa)
     with pytest.raises(InvalidResponseError):
         harness.respond_announce_attribute(engine.ATTRIBUTE_DARK)
@@ -453,5 +495,5 @@ def test_respond_announce_attribute_rejects_bit_outside(harness: Harness) -> Non
 # ---------------------------------------------------------------------------
 def test_wrong_responder_rejected(harness: Harness) -> None:
     _pend(harness, engine.MSG_SELECT_YESNO, engine.SelectYesNo(player=0, desc=0))
-    with pytest.raises(Exception):  # HarnessError
+    with pytest.raises(HarnessError):
         harness.respond_select_effectyn(True)

@@ -23,8 +23,7 @@ entry per unique code, alphabetical by name.
 
 from __future__ import annotations
 
-import json
-from typing import Iterable
+from collections.abc import Iterable
 
 from engine.core import CardDB
 
@@ -41,11 +40,21 @@ def _render_one_card(code: int, info: dict) -> list[str]:
     out.append(header)
     # Stat block for monsters
     bits: list[str] = []
-    for k, label in (("atk", "ATK"), ("attack", "ATK"), ("def", "DEF"),
-                     ("defense", "DEF"), ("level", "Level"),
-                     ("attribute", "Attribute"), ("race", "Race")):
+    for k, label in (
+        ("atk", "ATK"),
+        ("attack", "ATK"),
+        ("def", "DEF"),
+        ("defense", "DEF"),
+        ("level", "Level"),
+        ("attribute", "Attribute"),
+        ("race", "Race"),
+    ):
         v = info.get(k)
-        if v is not None and v != "" and (k, label) not in (("atk", "ATK") if "attack" in info else ()):
+        if (
+            v is not None
+            and v != ""
+            and (k, label) not in (("atk", "ATK") if "attack" in info else ())
+        ):
             bits.append(f"{label} {v}")
     # Dedupe by label so we don't print "ATK 1500 ATK 1500" when both
     # `atk` and `attack` are present.

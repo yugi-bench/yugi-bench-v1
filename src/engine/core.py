@@ -23,13 +23,13 @@ import sqlite3
 import struct
 import sys
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Default paths (override via env vars or constructor args)
 # ---------------------------------------------------------------------------
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 def _first_existing(*candidates: Path) -> Path:
@@ -59,104 +59,139 @@ def _default_dylib() -> Path:
 
 
 DYLIB_PATH = _default_dylib()
-SCRIPT_DIR = Path(os.environ.get(
-    "YGO_SCRIPT_DIR",
-    str(_first_existing(
-        REPO_ROOT / "vendor" / "distribution" / "script",
-        REPO_ROOT.parent / "distribution" / "script",
-    )),
-))
-CARD_SCRIPT_DIR = Path(os.environ.get(
-    "YGO_CARD_SCRIPT_DIR", str(SCRIPT_DIR / "official")))
-DB_DIR = Path(os.environ.get(
-    "YGO_DB_DIR",
-    str(_first_existing(
-        REPO_ROOT / "vendor" / "distribution" / "expansions",
-        REPO_ROOT.parent / "distribution" / "expansions",
-    )),
-))
+SCRIPT_DIR = Path(
+    os.environ.get(
+        "YGO_SCRIPT_DIR",
+        str(
+            _first_existing(
+                REPO_ROOT / "vendor" / "distribution" / "script",
+                REPO_ROOT.parent / "distribution" / "script",
+            )
+        ),
+    )
+)
+CARD_SCRIPT_DIR = Path(os.environ.get("YGO_CARD_SCRIPT_DIR", str(SCRIPT_DIR / "official")))
+DB_DIR = Path(
+    os.environ.get(
+        "YGO_DB_DIR",
+        str(
+            _first_existing(
+                REPO_ROOT / "vendor" / "distribution" / "expansions",
+                REPO_ROOT.parent / "distribution" / "expansions",
+            )
+        ),
+    )
+)
 
 # ---------------------------------------------------------------------------
 # OCG constants
 # ---------------------------------------------------------------------------
-DUEL_TEST_MODE                        = 0x01
-DUEL_ATTACK_FIRST_TURN                = 0x02
-DUEL_USE_TRAPS_IN_NEW_CHAIN           = 0x04
-DUEL_6_STEP_BATLLE_STEP               = 0x08
-DUEL_PSEUDO_SHUFFLE                   = 0x10
-DUEL_TRIGGER_WHEN_PRIVATE_KNOWLEDGE   = 0x20
-DUEL_SIMPLE_AI                        = 0x40
-DUEL_RELAY                            = 0x80
-DUEL_OCG_OBSOLETE_IGNITION            = 0x100
-DUEL_1ST_TURN_DRAW                    = 0x200
-DUEL_1_FACEUP_FIELD                   = 0x400
-DUEL_PZONE                            = 0x800
-DUEL_SEPARATE_PZONE                   = 0x1000
-DUEL_EMZONE                           = 0x2000
-DUEL_FSX_MMZONE                       = 0x4000
-DUEL_TRAP_MONSTERS_NOT_USE_ZONE       = 0x8000
-DUEL_RETURN_TO_DECK_TRIGGERS          = 0x10000
-DUEL_TRIGGER_ONLY_IN_LOCATION         = 0x20000
-DUEL_SPSUMMON_ONCE_OLD_NEGATE         = 0x40000
-DUEL_CANNOT_SUMMON_OATH_OLD           = 0x80000
-DUEL_NO_STANDBY_PHASE                 = 0x100000
-DUEL_NO_MAIN_PHASE_2                  = 0x200000
-DUEL_3_COLUMNS_FIELD                  = 0x400000
-DUEL_DRAW_UNTIL_5                     = 0x800000
-DUEL_NO_HAND_LIMIT                    = 0x1000000
-DUEL_UNLIMITED_SUMMONS                = 0x2000000
-DUEL_INVERTED_QUICK_PRIORITY          = 0x4000000
+DUEL_TEST_MODE = 0x01
+DUEL_ATTACK_FIRST_TURN = 0x02
+DUEL_USE_TRAPS_IN_NEW_CHAIN = 0x04
+DUEL_6_STEP_BATLLE_STEP = 0x08
+DUEL_PSEUDO_SHUFFLE = 0x10
+DUEL_TRIGGER_WHEN_PRIVATE_KNOWLEDGE = 0x20
+DUEL_SIMPLE_AI = 0x40
+DUEL_RELAY = 0x80
+DUEL_OCG_OBSOLETE_IGNITION = 0x100
+DUEL_1ST_TURN_DRAW = 0x200
+DUEL_1_FACEUP_FIELD = 0x400
+DUEL_PZONE = 0x800
+DUEL_SEPARATE_PZONE = 0x1000
+DUEL_EMZONE = 0x2000
+DUEL_FSX_MMZONE = 0x4000
+DUEL_TRAP_MONSTERS_NOT_USE_ZONE = 0x8000
+DUEL_RETURN_TO_DECK_TRIGGERS = 0x10000
+DUEL_TRIGGER_ONLY_IN_LOCATION = 0x20000
+DUEL_SPSUMMON_ONCE_OLD_NEGATE = 0x40000
+DUEL_CANNOT_SUMMON_OATH_OLD = 0x80000
+DUEL_NO_STANDBY_PHASE = 0x100000
+DUEL_NO_MAIN_PHASE_2 = 0x200000
+DUEL_3_COLUMNS_FIELD = 0x400000
+DUEL_DRAW_UNTIL_5 = 0x800000
+DUEL_NO_HAND_LIMIT = 0x1000000
+DUEL_UNLIMITED_SUMMONS = 0x2000000
+DUEL_INVERTED_QUICK_PRIORITY = 0x4000000
 DUEL_EQUIP_NOT_SENT_IF_MISSING_TARGET = 0x8000000
-DUEL_0_ATK_DESTROYED                  = 0x10000000
-DUEL_STORE_ATTACK_REPLAYS             = 0x20000000
-DUEL_SINGLE_CHAIN_IN_DAMAGE_SUBSTEP   = 0x40000000
-DUEL_CAN_REPOS_IF_NON_SUMPLAYER       = 0x80000000
-DUEL_TCG_SEGOC_NONPUBLIC              = 0x100000000
-DUEL_TCG_SEGOC_FIRSTTRIGGER           = 0x200000000
-DUEL_TCG_FAST_EFFECT_IGNITION         = 0x400000000
-DUEL_EXTRA_DECK_RITUAL                = 0x800000000
-DUEL_NORMAL_SUMMON_FACEUP_DEF         = 0x1000000000
+DUEL_0_ATK_DESTROYED = 0x10000000
+DUEL_STORE_ATTACK_REPLAYS = 0x20000000
+DUEL_SINGLE_CHAIN_IN_DAMAGE_SUBSTEP = 0x40000000
+DUEL_CAN_REPOS_IF_NON_SUMPLAYER = 0x80000000
+DUEL_TCG_SEGOC_NONPUBLIC = 0x100000000
+DUEL_TCG_SEGOC_FIRSTTRIGGER = 0x200000000
+DUEL_TCG_FAST_EFFECT_IGNITION = 0x400000000
+DUEL_EXTRA_DECK_RITUAL = 0x800000000
+DUEL_NORMAL_SUMMON_FACEUP_DEF = 0x1000000000
 
 DUEL_MODE_SPEED = (
-    DUEL_3_COLUMNS_FIELD | DUEL_NO_MAIN_PHASE_2
-    | DUEL_TRAP_MONSTERS_NOT_USE_ZONE | DUEL_TRIGGER_ONLY_IN_LOCATION
+    DUEL_3_COLUMNS_FIELD
+    | DUEL_NO_MAIN_PHASE_2
+    | DUEL_TRAP_MONSTERS_NOT_USE_ZONE
+    | DUEL_TRIGGER_ONLY_IN_LOCATION
 )
 DUEL_MODE_RUSH = (
-    DUEL_3_COLUMNS_FIELD | DUEL_NO_MAIN_PHASE_2 | DUEL_NO_STANDBY_PHASE
-    | DUEL_1ST_TURN_DRAW | DUEL_INVERTED_QUICK_PRIORITY | DUEL_DRAW_UNTIL_5
-    | DUEL_NO_HAND_LIMIT | DUEL_UNLIMITED_SUMMONS
-    | DUEL_TRAP_MONSTERS_NOT_USE_ZONE | DUEL_TRIGGER_ONLY_IN_LOCATION
+    DUEL_3_COLUMNS_FIELD
+    | DUEL_NO_MAIN_PHASE_2
+    | DUEL_NO_STANDBY_PHASE
+    | DUEL_1ST_TURN_DRAW
+    | DUEL_INVERTED_QUICK_PRIORITY
+    | DUEL_DRAW_UNTIL_5
+    | DUEL_NO_HAND_LIMIT
+    | DUEL_UNLIMITED_SUMMONS
+    | DUEL_TRAP_MONSTERS_NOT_USE_ZONE
+    | DUEL_TRIGGER_ONLY_IN_LOCATION
     | DUEL_EXTRA_DECK_RITUAL
 )
 DUEL_MODE_MR1 = (
-    DUEL_OCG_OBSOLETE_IGNITION | DUEL_1ST_TURN_DRAW | DUEL_1_FACEUP_FIELD
-    | DUEL_SPSUMMON_ONCE_OLD_NEGATE | DUEL_RETURN_TO_DECK_TRIGGERS
+    DUEL_OCG_OBSOLETE_IGNITION
+    | DUEL_1ST_TURN_DRAW
+    | DUEL_1_FACEUP_FIELD
+    | DUEL_SPSUMMON_ONCE_OLD_NEGATE
+    | DUEL_RETURN_TO_DECK_TRIGGERS
     | DUEL_CANNOT_SUMMON_OATH_OLD
 )
 DUEL_MODE_GOAT = (
-    DUEL_MODE_MR1 | DUEL_TCG_FAST_EFFECT_IGNITION
-    | DUEL_USE_TRAPS_IN_NEW_CHAIN | DUEL_6_STEP_BATLLE_STEP
+    DUEL_MODE_MR1
+    | DUEL_TCG_FAST_EFFECT_IGNITION
+    | DUEL_USE_TRAPS_IN_NEW_CHAIN
+    | DUEL_6_STEP_BATLLE_STEP
     | DUEL_TRIGGER_WHEN_PRIVATE_KNOWLEDGE
-    | DUEL_EQUIP_NOT_SENT_IF_MISSING_TARGET | DUEL_0_ATK_DESTROYED
-    | DUEL_STORE_ATTACK_REPLAYS | DUEL_SINGLE_CHAIN_IN_DAMAGE_SUBSTEP
-    | DUEL_CAN_REPOS_IF_NON_SUMPLAYER | DUEL_TCG_SEGOC_NONPUBLIC
+    | DUEL_EQUIP_NOT_SENT_IF_MISSING_TARGET
+    | DUEL_0_ATK_DESTROYED
+    | DUEL_STORE_ATTACK_REPLAYS
+    | DUEL_SINGLE_CHAIN_IN_DAMAGE_SUBSTEP
+    | DUEL_CAN_REPOS_IF_NON_SUMPLAYER
+    | DUEL_TCG_SEGOC_NONPUBLIC
     | DUEL_TCG_SEGOC_FIRSTTRIGGER
 )
 DUEL_MODE_MR2 = (
-    DUEL_1ST_TURN_DRAW | DUEL_1_FACEUP_FIELD | DUEL_SPSUMMON_ONCE_OLD_NEGATE
-    | DUEL_RETURN_TO_DECK_TRIGGERS | DUEL_CANNOT_SUMMON_OATH_OLD
+    DUEL_1ST_TURN_DRAW
+    | DUEL_1_FACEUP_FIELD
+    | DUEL_SPSUMMON_ONCE_OLD_NEGATE
+    | DUEL_RETURN_TO_DECK_TRIGGERS
+    | DUEL_CANNOT_SUMMON_OATH_OLD
 )
 DUEL_MODE_MR3 = (
-    DUEL_PZONE | DUEL_SEPARATE_PZONE | DUEL_SPSUMMON_ONCE_OLD_NEGATE
-    | DUEL_RETURN_TO_DECK_TRIGGERS | DUEL_CANNOT_SUMMON_OATH_OLD
+    DUEL_PZONE
+    | DUEL_SEPARATE_PZONE
+    | DUEL_SPSUMMON_ONCE_OLD_NEGATE
+    | DUEL_RETURN_TO_DECK_TRIGGERS
+    | DUEL_CANNOT_SUMMON_OATH_OLD
 )
 DUEL_MODE_MR4 = (
-    DUEL_PZONE | DUEL_EMZONE | DUEL_SPSUMMON_ONCE_OLD_NEGATE
-    | DUEL_RETURN_TO_DECK_TRIGGERS | DUEL_CANNOT_SUMMON_OATH_OLD
+    DUEL_PZONE
+    | DUEL_EMZONE
+    | DUEL_SPSUMMON_ONCE_OLD_NEGATE
+    | DUEL_RETURN_TO_DECK_TRIGGERS
+    | DUEL_CANNOT_SUMMON_OATH_OLD
 )
 DUEL_MODE_MR5 = (
-    DUEL_PZONE | DUEL_EMZONE | DUEL_FSX_MMZONE
-    | DUEL_TRAP_MONSTERS_NOT_USE_ZONE | DUEL_TRIGGER_ONLY_IN_LOCATION
+    DUEL_PZONE
+    | DUEL_EMZONE
+    | DUEL_FSX_MMZONE
+    | DUEL_TRAP_MONSTERS_NOT_USE_ZONE
+    | DUEL_TRIGGER_ONLY_IN_LOCATION
 )
 
 # ---------------------------------------------------------------------------
@@ -166,160 +201,160 @@ DUEL_MODE_MR5 = (
 # §Announce Card Opcodes) — kept 1:1 so wire-format consumers can reference
 # them by name.
 # ---------------------------------------------------------------------------
-TYPE_MONSTER     = 0x1
-TYPE_SPELL       = 0x2
-TYPE_TRAP        = 0x4
-TYPE_NORMAL      = 0x10
-TYPE_EFFECT      = 0x20
-TYPE_FUSION      = 0x40
-TYPE_RITUAL      = 0x80
+TYPE_MONSTER = 0x1
+TYPE_SPELL = 0x2
+TYPE_TRAP = 0x4
+TYPE_NORMAL = 0x10
+TYPE_EFFECT = 0x20
+TYPE_FUSION = 0x40
+TYPE_RITUAL = 0x80
 TYPE_TRAPMONSTER = 0x100
-TYPE_SPIRIT      = 0x200
-TYPE_UNION       = 0x400
-TYPE_GEMINI      = 0x800
-TYPE_TUNER       = 0x1000
-TYPE_SYNCHRO     = 0x2000
-TYPE_TOKEN       = 0x4000
-TYPE_MAXIMUM     = 0x8000
-TYPE_QUICKPLAY   = 0x10000
-TYPE_CONTINUOUS  = 0x20000
-TYPE_EQUIP       = 0x40000
-TYPE_FIELD       = 0x80000
-TYPE_COUNTER     = 0x100000
-TYPE_FLIP        = 0x200000
-TYPE_TOON        = 0x400000
-TYPE_XYZ         = 0x800000
-TYPE_PENDULUM    = 0x1000000
-TYPE_SPSUMMON    = 0x2000000
-TYPE_LINK        = 0x4000000
+TYPE_SPIRIT = 0x200
+TYPE_UNION = 0x400
+TYPE_GEMINI = 0x800
+TYPE_TUNER = 0x1000
+TYPE_SYNCHRO = 0x2000
+TYPE_TOKEN = 0x4000
+TYPE_MAXIMUM = 0x8000
+TYPE_QUICKPLAY = 0x10000
+TYPE_CONTINUOUS = 0x20000
+TYPE_EQUIP = 0x40000
+TYPE_FIELD = 0x80000
+TYPE_COUNTER = 0x100000
+TYPE_FLIP = 0x200000
+TYPE_TOON = 0x400000
+TYPE_XYZ = 0x800000
+TYPE_PENDULUM = 0x1000000
+TYPE_SPSUMMON = 0x2000000
+TYPE_LINK = 0x4000000
 
-ATTRIBUTE_EARTH  = 0x01
-ATTRIBUTE_WATER  = 0x02
-ATTRIBUTE_FIRE   = 0x04
-ATTRIBUTE_WIND   = 0x08
-ATTRIBUTE_LIGHT  = 0x10
-ATTRIBUTE_DARK   = 0x20
+ATTRIBUTE_EARTH = 0x01
+ATTRIBUTE_WATER = 0x02
+ATTRIBUTE_FIRE = 0x04
+ATTRIBUTE_WIND = 0x08
+ATTRIBUTE_LIGHT = 0x10
+ATTRIBUTE_DARK = 0x20
 ATTRIBUTE_DIVINE = 0x40
 
-RACE_WARRIOR          = 0x1
-RACE_SPELLCASTER      = 0x2
-RACE_FAIRY            = 0x4
-RACE_FIEND            = 0x8
-RACE_ZOMBIE           = 0x10
-RACE_MACHINE          = 0x20
-RACE_AQUA             = 0x40
-RACE_PYRO             = 0x80
-RACE_ROCK             = 0x100
-RACE_WINGEDBEAST      = 0x200
-RACE_PLANT            = 0x400
-RACE_INSECT           = 0x800
-RACE_THUNDER          = 0x1000
-RACE_DRAGON           = 0x2000
-RACE_BEAST            = 0x4000
-RACE_BEASTWARRIOR     = 0x8000
-RACE_DINOSAUR         = 0x10000
-RACE_FISH             = 0x20000
-RACE_SEASERPENT       = 0x40000
-RACE_REPTILE          = 0x80000
-RACE_PSYCHIC          = 0x100000
-RACE_DIVINE           = 0x200000
-RACE_CREATORGOD       = 0x400000
-RACE_WYRM             = 0x800000
-RACE_CYBERSE          = 0x1000000
-RACE_ILLUSION         = 0x2000000
-RACE_CYBORG           = 0x4000000
-RACE_MAGICALKNIGHT    = 0x8000000
-RACE_HIGHDRAGON       = 0x10000000
-RACE_OMEGAPSYCHIC     = 0x20000000
+RACE_WARRIOR = 0x1
+RACE_SPELLCASTER = 0x2
+RACE_FAIRY = 0x4
+RACE_FIEND = 0x8
+RACE_ZOMBIE = 0x10
+RACE_MACHINE = 0x20
+RACE_AQUA = 0x40
+RACE_PYRO = 0x80
+RACE_ROCK = 0x100
+RACE_WINGEDBEAST = 0x200
+RACE_PLANT = 0x400
+RACE_INSECT = 0x800
+RACE_THUNDER = 0x1000
+RACE_DRAGON = 0x2000
+RACE_BEAST = 0x4000
+RACE_BEASTWARRIOR = 0x8000
+RACE_DINOSAUR = 0x10000
+RACE_FISH = 0x20000
+RACE_SEASERPENT = 0x40000
+RACE_REPTILE = 0x80000
+RACE_PSYCHIC = 0x100000
+RACE_DIVINE = 0x200000
+RACE_CREATORGOD = 0x400000
+RACE_WYRM = 0x800000
+RACE_CYBERSE = 0x1000000
+RACE_ILLUSION = 0x2000000
+RACE_CYBORG = 0x4000000
+RACE_MAGICALKNIGHT = 0x8000000
+RACE_HIGHDRAGON = 0x10000000
+RACE_OMEGAPSYCHIC = 0x20000000
 RACE_CELESTIALWARRIOR = 0x40000000
-RACE_GALAXY           = 0x80000000
-RACE_YOKAI            = 0x4000000000000000
+RACE_GALAXY = 0x80000000
+RACE_YOKAI = 0x4000000000000000
 
-REASON_DESTROY     = 0x1
-REASON_RELEASE     = 0x2
-REASON_TEMPORARY   = 0x4
-REASON_MATERIAL    = 0x8
-REASON_SUMMON      = 0x10
-REASON_BATTLE      = 0x20
-REASON_EFFECT      = 0x40
-REASON_COST        = 0x80
-REASON_ADJUST      = 0x100
+REASON_DESTROY = 0x1
+REASON_RELEASE = 0x2
+REASON_TEMPORARY = 0x4
+REASON_MATERIAL = 0x8
+REASON_SUMMON = 0x10
+REASON_BATTLE = 0x20
+REASON_EFFECT = 0x40
+REASON_COST = 0x80
+REASON_ADJUST = 0x100
 REASON_LOST_TARGET = 0x200
-REASON_RULE        = 0x400
-REASON_SPSUMMON    = 0x800
-REASON_DISSUMMON   = 0x1000
-REASON_FLIP        = 0x2000
-REASON_DISCARD     = 0x4000
-REASON_RDAMAGE     = 0x8000
-REASON_RRECOVER    = 0x10000
-REASON_RETURN      = 0x20000
-REASON_FUSION      = 0x40000
-REASON_SYNCHRO     = 0x80000
-REASON_RITUAL      = 0x100000
-REASON_XYZ         = 0x200000
-REASON_REPLACE     = 0x1000000
-REASON_DRAW        = 0x2000000
-REASON_REDIRECT    = 0x4000000
-REASON_LINK        = 0x10000000
+REASON_RULE = 0x400
+REASON_SPSUMMON = 0x800
+REASON_DISSUMMON = 0x1000
+REASON_FLIP = 0x2000
+REASON_DISCARD = 0x4000
+REASON_RDAMAGE = 0x8000
+REASON_RRECOVER = 0x10000
+REASON_RETURN = 0x20000
+REASON_FUSION = 0x40000
+REASON_SYNCHRO = 0x80000
+REASON_RITUAL = 0x100000
+REASON_XYZ = 0x200000
+REASON_REPLACE = 0x1000000
+REASON_DRAW = 0x2000000
+REASON_REDIRECT = 0x4000000
+REASON_LINK = 0x10000000
 
-LINK_MARKER_BOTTOM_LEFT  = 0o001
-LINK_MARKER_BOTTOM       = 0o002
+LINK_MARKER_BOTTOM_LEFT = 0o001
+LINK_MARKER_BOTTOM = 0o002
 LINK_MARKER_BOTTOM_RIGHT = 0o004
-LINK_MARKER_LEFT         = 0o010
-LINK_MARKER_RIGHT        = 0o040
-LINK_MARKER_TOP_LEFT     = 0o100
-LINK_MARKER_TOP          = 0o200
-LINK_MARKER_TOP_RIGHT    = 0o400
+LINK_MARKER_LEFT = 0o010
+LINK_MARKER_RIGHT = 0o040
+LINK_MARKER_TOP_LEFT = 0o100
+LINK_MARKER_TOP = 0o200
+LINK_MARKER_TOP_RIGHT = 0o400
 
-HINT_EVENT      = 1
-HINT_MESSAGE    = 2
-HINT_SELECTMSG  = 3
+HINT_EVENT = 1
+HINT_MESSAGE = 2
+HINT_SELECTMSG = 3
 HINT_OPSELECTED = 4
-HINT_EFFECT     = 5
-HINT_RACE       = 6
-HINT_ATTRIB     = 7
-HINT_CODE       = 8
-HINT_NUMBER     = 9
-HINT_CARD       = 10
-HINT_ZONE       = 11
+HINT_EFFECT = 5
+HINT_RACE = 6
+HINT_ATTRIB = 7
+HINT_CODE = 8
+HINT_NUMBER = 9
+HINT_CARD = 10
+HINT_ZONE = 11
 
-CHINT_TURN        = 1
-CHINT_CARD        = 2
-CHINT_RACE        = 3
-CHINT_ATTRIBUTE   = 4
-CHINT_NUMBER      = 5
-CHINT_DESC_ADD    = 6
+CHINT_TURN = 1
+CHINT_CARD = 2
+CHINT_RACE = 3
+CHINT_ATTRIBUTE = 4
+CHINT_NUMBER = 5
+CHINT_DESC_ADD = 6
 CHINT_DESC_REMOVE = 7
 
-PHINT_DESC_ADD    = 6
+PHINT_DESC_ADD = 6
 PHINT_DESC_REMOVE = 7
 
-OPCODE_ADD           = 0x4000000000000000
-OPCODE_SUB           = 0x4000000100000000
-OPCODE_MUL           = 0x4000000200000000
-OPCODE_DIV           = 0x4000000300000000
-OPCODE_AND           = 0x4000000400000000
-OPCODE_OR            = 0x4000000500000000
-OPCODE_NEG           = 0x4000000600000000
-OPCODE_NOT           = 0x4000000700000000
-OPCODE_BAND          = 0x4000000800000000
-OPCODE_BOR           = 0x4000000900000000
-OPCODE_BNOT          = 0x4000001000000000
-OPCODE_BXOR          = 0x4000001100000000
-OPCODE_LSHIFT        = 0x4000001200000000
-OPCODE_RSHIFT        = 0x4000001300000000
+OPCODE_ADD = 0x4000000000000000
+OPCODE_SUB = 0x4000000100000000
+OPCODE_MUL = 0x4000000200000000
+OPCODE_DIV = 0x4000000300000000
+OPCODE_AND = 0x4000000400000000
+OPCODE_OR = 0x4000000500000000
+OPCODE_NEG = 0x4000000600000000
+OPCODE_NOT = 0x4000000700000000
+OPCODE_BAND = 0x4000000800000000
+OPCODE_BOR = 0x4000000900000000
+OPCODE_BNOT = 0x4000001000000000
+OPCODE_BXOR = 0x4000001100000000
+OPCODE_LSHIFT = 0x4000001200000000
+OPCODE_RSHIFT = 0x4000001300000000
 OPCODE_ALLOW_ALIASES = 0x4000001400000000
-OPCODE_ALLOW_TOKENS  = 0x4000001500000000
-OPCODE_ISCODE        = 0x4000010000000000
-OPCODE_ISSETCARD     = 0x4000010100000000
-OPCODE_ISTYPE        = 0x4000010200000000
-OPCODE_ISRACE        = 0x4000010300000000
-OPCODE_ISATTRIBUTE   = 0x4000010400000000
-OPCODE_GETCODE       = 0x4000010500000000
-OPCODE_GETSETCARD    = 0x4000010600000000
-OPCODE_GETTYPE       = 0x4000010700000000
-OPCODE_GETRACE       = 0x4000010800000000
-OPCODE_GETATTRIBUTE  = 0x4000010900000000
+OPCODE_ALLOW_TOKENS = 0x4000001500000000
+OPCODE_ISCODE = 0x4000010000000000
+OPCODE_ISSETCARD = 0x4000010100000000
+OPCODE_ISTYPE = 0x4000010200000000
+OPCODE_ISRACE = 0x4000010300000000
+OPCODE_ISATTRIBUTE = 0x4000010400000000
+OPCODE_GETCODE = 0x4000010500000000
+OPCODE_GETSETCARD = 0x4000010600000000
+OPCODE_GETTYPE = 0x4000010700000000
+OPCODE_GETRACE = 0x4000010800000000
+OPCODE_GETATTRIBUTE = 0x4000010900000000
 
 LOCATION_DECK = 0x01
 LOCATION_HAND = 0x02
@@ -465,72 +500,87 @@ PHASE_BATTLE = 0x80
 PHASE_MAIN2 = 0x100
 PHASE_END = 0x200
 
-QUERY_CODE         = 0x1
-QUERY_POSITION     = 0x2
-QUERY_ALIAS        = 0x4
-QUERY_TYPE         = 0x8
-QUERY_LEVEL        = 0x10
-QUERY_RANK         = 0x20
-QUERY_ATTRIBUTE    = 0x40
-QUERY_RACE         = 0x80
-QUERY_ATTACK       = 0x100
-QUERY_DEFENSE      = 0x200
-QUERY_BASE_ATTACK  = 0x400
+QUERY_CODE = 0x1
+QUERY_POSITION = 0x2
+QUERY_ALIAS = 0x4
+QUERY_TYPE = 0x8
+QUERY_LEVEL = 0x10
+QUERY_RANK = 0x20
+QUERY_ATTRIBUTE = 0x40
+QUERY_RACE = 0x80
+QUERY_ATTACK = 0x100
+QUERY_DEFENSE = 0x200
+QUERY_BASE_ATTACK = 0x400
 QUERY_BASE_DEFENSE = 0x800
-QUERY_REASON       = 0x1000
-QUERY_REASON_CARD  = 0x2000
-QUERY_EQUIP_CARD   = 0x4000
-QUERY_TARGET_CARD  = 0x8000
+QUERY_REASON = 0x1000
+QUERY_REASON_CARD = 0x2000
+QUERY_EQUIP_CARD = 0x4000
+QUERY_TARGET_CARD = 0x8000
 QUERY_OVERLAY_CARD = 0x10000
-QUERY_COUNTERS     = 0x20000
-QUERY_OWNER        = 0x40000
-QUERY_STATUS       = 0x80000
-QUERY_IS_PUBLIC    = 0x100000
-QUERY_LSCALE       = 0x200000
-QUERY_RSCALE       = 0x400000
-QUERY_LINK         = 0x800000
-QUERY_IS_HIDDEN    = 0x1000000
-QUERY_COVER        = 0x2000000
-QUERY_END          = 0x80000000
+QUERY_COUNTERS = 0x20000
+QUERY_OWNER = 0x40000
+QUERY_STATUS = 0x80000
+QUERY_IS_PUBLIC = 0x100000
+QUERY_LSCALE = 0x200000
+QUERY_RSCALE = 0x400000
+QUERY_LINK = 0x800000
+QUERY_IS_HIDDEN = 0x1000000
+QUERY_COVER = 0x2000000
+QUERY_END = 0x80000000
 
 QUERY_FULL_CARD = (
-    QUERY_CODE | QUERY_POSITION | QUERY_ALIAS | QUERY_TYPE
-    | QUERY_LEVEL | QUERY_RANK | QUERY_ATTRIBUTE | QUERY_RACE
-    | QUERY_ATTACK | QUERY_DEFENSE | QUERY_BASE_ATTACK | QUERY_BASE_DEFENSE
-    | QUERY_OVERLAY_CARD | QUERY_COUNTERS | QUERY_OWNER | QUERY_STATUS
-    | QUERY_IS_PUBLIC | QUERY_LSCALE | QUERY_RSCALE | QUERY_LINK
+    QUERY_CODE
+    | QUERY_POSITION
+    | QUERY_ALIAS
+    | QUERY_TYPE
+    | QUERY_LEVEL
+    | QUERY_RANK
+    | QUERY_ATTRIBUTE
+    | QUERY_RACE
+    | QUERY_ATTACK
+    | QUERY_DEFENSE
+    | QUERY_BASE_ATTACK
+    | QUERY_BASE_DEFENSE
+    | QUERY_OVERLAY_CARD
+    | QUERY_COUNTERS
+    | QUERY_OWNER
+    | QUERY_STATUS
+    | QUERY_IS_PUBLIC
+    | QUERY_LSCALE
+    | QUERY_RSCALE
+    | QUERY_LINK
 )
 
-STATUS_DISABLED            = 0x1
-STATUS_TO_ENABLE           = 0x2
-STATUS_TO_DISABLE          = 0x4
-STATUS_PROC_COMPLETE       = 0x8
-STATUS_SET_TURN            = 0x10
-STATUS_NO_LEVEL            = 0x20
-STATUS_BATTLE_RESULT       = 0x40
-STATUS_SPSUMMON_STEP       = 0x80
-STATUS_FORM_CHANGED        = 0x100
-STATUS_SUMMONING           = 0x200
-STATUS_EFFECT_ENABLED      = 0x400
-STATUS_SUMMON_TURN         = 0x800
-STATUS_DESTROY_CONFIRMED   = 0x1000
-STATUS_LEAVE_CONFIRMED     = 0x2000
-STATUS_BATTLE_DESTROYED    = 0x4000
-STATUS_COPYING_EFFECT      = 0x8000
-STATUS_CHAINING            = 0x10000
-STATUS_SUMMON_DISABLED     = 0x20000
-STATUS_ACTIVATE_DISABLED   = 0x40000
-STATUS_EFFECT_REPLACED     = 0x80000
-STATUS_FUTURE_FUSION       = 0x100000
-STATUS_ATTACK_CANCELED     = 0x200000
-STATUS_INITIALIZING        = 0x400000
-STATUS_JUST_POS            = 0x1000000
-STATUS_CONTINUOUS_POS      = 0x2000000
-STATUS_FORBIDDEN           = 0x4000000
-STATUS_ACT_FROM_HAND       = 0x8000000
-STATUS_OPPO_BATTLE         = 0x10000000
-STATUS_FLIP_SUMMON_TURN    = 0x20000000
-STATUS_SPSUMMON_TURN       = 0x40000000
+STATUS_DISABLED = 0x1
+STATUS_TO_ENABLE = 0x2
+STATUS_TO_DISABLE = 0x4
+STATUS_PROC_COMPLETE = 0x8
+STATUS_SET_TURN = 0x10
+STATUS_NO_LEVEL = 0x20
+STATUS_BATTLE_RESULT = 0x40
+STATUS_SPSUMMON_STEP = 0x80
+STATUS_FORM_CHANGED = 0x100
+STATUS_SUMMONING = 0x200
+STATUS_EFFECT_ENABLED = 0x400
+STATUS_SUMMON_TURN = 0x800
+STATUS_DESTROY_CONFIRMED = 0x1000
+STATUS_LEAVE_CONFIRMED = 0x2000
+STATUS_BATTLE_DESTROYED = 0x4000
+STATUS_COPYING_EFFECT = 0x8000
+STATUS_CHAINING = 0x10000
+STATUS_SUMMON_DISABLED = 0x20000
+STATUS_ACTIVATE_DISABLED = 0x40000
+STATUS_EFFECT_REPLACED = 0x80000
+STATUS_FUTURE_FUSION = 0x100000
+STATUS_ATTACK_CANCELED = 0x200000
+STATUS_INITIALIZING = 0x400000
+STATUS_JUST_POS = 0x1000000
+STATUS_CONTINUOUS_POS = 0x2000000
+STATUS_FORBIDDEN = 0x4000000
+STATUS_ACT_FROM_HAND = 0x8000000
+STATUS_OPPO_BATTLE = 0x10000000
+STATUS_FLIP_SUMMON_TURN = 0x20000000
+STATUS_SPSUMMON_TURN = 0x40000000
 
 # Zone counts (MR5)
 MZONE_SLOTS = 7
@@ -539,12 +589,27 @@ SZONE_SLOTS = 8
 MSG_NAME = {v: k for k, v in globals().items() if k.startswith("MSG_")}
 
 SELECT_MSG_TYPES = {
-    MSG_SELECT_IDLECMD, MSG_SELECT_BATTLECMD, MSG_SELECT_CARD, MSG_SELECT_TRIBUTE,
-    MSG_SELECT_CHAIN, MSG_SELECT_EFFECTYN, MSG_SELECT_YESNO, MSG_SELECT_OPTION,
-    MSG_SELECT_POSITION, MSG_SELECT_PLACE, MSG_SELECT_DISFIELD, MSG_SELECT_SUM,
-    MSG_SELECT_UNSELECT_CARD, MSG_SELECT_COUNTER, MSG_SORT_CHAIN, MSG_SORT_CARD,
-    MSG_ROCK_PAPER_SCISSORS, MSG_ANNOUNCE_RACE, MSG_ANNOUNCE_ATTRIB,
-    MSG_ANNOUNCE_CARD, MSG_ANNOUNCE_NUMBER,
+    MSG_SELECT_IDLECMD,
+    MSG_SELECT_BATTLECMD,
+    MSG_SELECT_CARD,
+    MSG_SELECT_TRIBUTE,
+    MSG_SELECT_CHAIN,
+    MSG_SELECT_EFFECTYN,
+    MSG_SELECT_YESNO,
+    MSG_SELECT_OPTION,
+    MSG_SELECT_POSITION,
+    MSG_SELECT_PLACE,
+    MSG_SELECT_DISFIELD,
+    MSG_SELECT_SUM,
+    MSG_SELECT_UNSELECT_CARD,
+    MSG_SELECT_COUNTER,
+    MSG_SORT_CHAIN,
+    MSG_SORT_CARD,
+    MSG_ROCK_PAPER_SCISSORS,
+    MSG_ANNOUNCE_RACE,
+    MSG_ANNOUNCE_ATTRIB,
+    MSG_ANNOUNCE_CARD,
+    MSG_ANNOUNCE_NUMBER,
 }
 
 
@@ -581,13 +646,11 @@ class OCG_Player(ctypes.Structure):
 
 
 OCG_DataReader = ctypes.CFUNCTYPE(
-    None, ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(OCG_CardData))
-OCG_DataReaderDone = ctypes.CFUNCTYPE(
-    None, ctypes.c_void_p, ctypes.POINTER(OCG_CardData))
-OCG_ScriptReader = ctypes.CFUNCTYPE(
-    ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_char_p)
-OCG_LogHandler = ctypes.CFUNCTYPE(
-    None, ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int)
+    None, ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(OCG_CardData)
+)
+OCG_DataReaderDone = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(OCG_CardData))
+OCG_ScriptReader = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_char_p)
+OCG_LogHandler = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int)
 
 
 class OCG_DuelOptions(ctypes.Structure):
@@ -683,9 +746,7 @@ class CardDB:
                     pass
                 try:
                     cols = "id,name,desc," + ",".join(f"str{i}" for i in range(1, 17))
-                    name_rows = conn.execute(
-                        f"SELECT {cols} FROM texts"
-                    ).fetchall()
+                    name_rows = conn.execute(f"SELECT {cols} FROM texts").fetchall()
                     for row in name_rows:
                         if row[0] not in self._cache:
                             continue
@@ -714,20 +775,47 @@ class CardDB:
 # Query response parsing
 # ---------------------------------------------------------------------------
 _QUERY_FIXED_SIZES = {
-    QUERY_CODE: 4, QUERY_POSITION: 4, QUERY_ALIAS: 4, QUERY_TYPE: 4,
-    QUERY_LEVEL: 4, QUERY_RANK: 4, QUERY_ATTRIBUTE: 4, QUERY_RACE: 8,
-    QUERY_ATTACK: 4, QUERY_DEFENSE: 4, QUERY_BASE_ATTACK: 4, QUERY_BASE_DEFENSE: 4,
-    QUERY_REASON: 4, QUERY_OWNER: 1, QUERY_STATUS: 4, QUERY_IS_PUBLIC: 1,
-    QUERY_LSCALE: 4, QUERY_RSCALE: 4, QUERY_IS_HIDDEN: 1, QUERY_COVER: 4,
+    QUERY_CODE: 4,
+    QUERY_POSITION: 4,
+    QUERY_ALIAS: 4,
+    QUERY_TYPE: 4,
+    QUERY_LEVEL: 4,
+    QUERY_RANK: 4,
+    QUERY_ATTRIBUTE: 4,
+    QUERY_RACE: 8,
+    QUERY_ATTACK: 4,
+    QUERY_DEFENSE: 4,
+    QUERY_BASE_ATTACK: 4,
+    QUERY_BASE_DEFENSE: 4,
+    QUERY_REASON: 4,
+    QUERY_OWNER: 1,
+    QUERY_STATUS: 4,
+    QUERY_IS_PUBLIC: 1,
+    QUERY_LSCALE: 4,
+    QUERY_RSCALE: 4,
+    QUERY_IS_HIDDEN: 1,
+    QUERY_COVER: 4,
 }
 _QUERY_FIELD_NAMES = {
-    QUERY_CODE: "code", QUERY_POSITION: "position", QUERY_ALIAS: "alias",
-    QUERY_TYPE: "type", QUERY_LEVEL: "level", QUERY_RANK: "rank",
-    QUERY_ATTRIBUTE: "attribute", QUERY_RACE: "race", QUERY_ATTACK: "attack",
-    QUERY_DEFENSE: "defense", QUERY_BASE_ATTACK: "base_attack",
-    QUERY_BASE_DEFENSE: "base_defense", QUERY_REASON: "reason",
-    QUERY_OWNER: "owner", QUERY_STATUS: "status", QUERY_IS_PUBLIC: "is_public",
-    QUERY_LSCALE: "lscale", QUERY_RSCALE: "rscale", QUERY_IS_HIDDEN: "is_hidden",
+    QUERY_CODE: "code",
+    QUERY_POSITION: "position",
+    QUERY_ALIAS: "alias",
+    QUERY_TYPE: "type",
+    QUERY_LEVEL: "level",
+    QUERY_RANK: "rank",
+    QUERY_ATTRIBUTE: "attribute",
+    QUERY_RACE: "race",
+    QUERY_ATTACK: "attack",
+    QUERY_DEFENSE: "defense",
+    QUERY_BASE_ATTACK: "base_attack",
+    QUERY_BASE_DEFENSE: "base_defense",
+    QUERY_REASON: "reason",
+    QUERY_OWNER: "owner",
+    QUERY_STATUS: "status",
+    QUERY_IS_PUBLIC: "is_public",
+    QUERY_LSCALE: "lscale",
+    QUERY_RSCALE: "rscale",
+    QUERY_IS_HIDDEN: "is_hidden",
     QUERY_COVER: "cover",
 }
 
@@ -740,12 +828,12 @@ def _parse_query_response(buf: bytes, offset: int = 0) -> dict:
     if end - i < 2:
         return result
     while i + 6 <= end:
-        size = int.from_bytes(buf[i:i+2], "little", signed=False)
-        flag = int.from_bytes(buf[i+2:i+6], "little", signed=False)
+        size = int.from_bytes(buf[i : i + 2], "little", signed=False)
+        flag = int.from_bytes(buf[i + 2 : i + 6], "little", signed=False)
         if flag == QUERY_END:
             result["_end_offset"] = i + 6
             return result
-        payload = buf[i+6 : i+2+size]
+        payload = buf[i + 6 : i + 2 + size]
         name = _QUERY_FIELD_NAMES.get(flag)
         if flag in _QUERY_FIXED_SIZES:
             sz = _QUERY_FIXED_SIZES[flag]
@@ -767,25 +855,28 @@ def _parse_query_response(buf: bytes, offset: int = 0) -> dict:
             targets = []
             off = 4
             for _ in range(count):
-                t = payload[off:off+10]
-                targets.append({
-                    "con": t[0], "loc": t[1],
-                    "seq": int.from_bytes(t[2:6], "little"),
-                    "pos": int.from_bytes(t[6:10], "little"),
-                })
+                t = payload[off : off + 10]
+                targets.append(
+                    {
+                        "con": t[0],
+                        "loc": t[1],
+                        "seq": int.from_bytes(t[2:6], "little"),
+                        "pos": int.from_bytes(t[6:10], "little"),
+                    }
+                )
                 off += 10
             result["targets"] = targets
         elif flag == QUERY_OVERLAY_CARD:
             count = int.from_bytes(payload[:4], "little")
-            codes = [int.from_bytes(payload[4+4*j:8+4*j], "little") for j in range(count)]
+            codes = [int.from_bytes(payload[4 + 4 * j : 8 + 4 * j], "little") for j in range(count)]
             result["overlay"] = codes
         elif flag == QUERY_COUNTERS:
             count = int.from_bytes(payload[:4], "little")
             counters = {}
             for j in range(count):
-                packed = int.from_bytes(payload[4+4*j:8+4*j], "little")
-                ctype = packed & 0xffff
-                ccount = (packed >> 16) & 0xffff
+                packed = int.from_bytes(payload[4 + 4 * j : 8 + 4 * j], "little")
+                ctype = packed & 0xFFFF
+                ccount = (packed >> 16) & 0xFFFF
                 counters[ctype] = ccount
             result["counters"] = counters
         elif flag == QUERY_LINK:
@@ -794,7 +885,7 @@ def _parse_query_response(buf: bytes, offset: int = 0) -> dict:
             result["link"] = link
             result["link_markers"] = markers
         else:
-            result[f"flag_{flag:x}"] = bytes(payload[:size-4])
+            result[f"flag_{flag:x}"] = bytes(payload[: size - 4])
         i += 2 + size
     return result
 
@@ -809,7 +900,7 @@ def _parse_query_location_response(buf: bytes) -> list[dict | None]:
     while i < end:
         if end - i < 2:
             break
-        peek = int.from_bytes(buf[i:i+2], "little", signed=True)
+        peek = int.from_bytes(buf[i : i + 2], "little", signed=True)
         if peek == 0:
             out.append(None)
             i += 2
@@ -855,17 +946,19 @@ def _parse_query_field_response(buf: bytes) -> dict:
         removed_count = r.read_u32()
         extra_count = r.read_u32()
         extra_p_count = r.read_u32()
-        players.append({
-            "lp": lp,
-            "mzone_summary": mzone,
-            "szone_summary": szone,
-            "deck_count": deck_count,
-            "hand_count_raw": hand_count,
-            "grave_count_raw": grave_count,
-            "removed_count_raw": removed_count,
-            "extra_count_raw": extra_count,
-            "extra_p_count": extra_p_count,
-        })
+        players.append(
+            {
+                "lp": lp,
+                "mzone_summary": mzone,
+                "szone_summary": szone,
+                "deck_count": deck_count,
+                "hand_count_raw": hand_count,
+                "grave_count_raw": grave_count,
+                "removed_count_raw": removed_count,
+                "extra_count_raw": extra_count,
+                "extra_p_count": extra_p_count,
+            }
+        )
     chain_count = r.read_u32() if r.remaining() >= 4 else 0
     chain = []
     for _ in range(chain_count):
@@ -880,12 +973,19 @@ def _parse_query_field_response(buf: bytes) -> dict:
         trg_loc = r.read_u8()
         trg_seq = r.read_u32()
         desc = r.read_u64()
-        chain.append({
-            "code": code,
-            "effect_location": {"con": info_con, "loc": info_loc, "seq": info_seq, "pos": info_pos},
-            "trigger_location": {"con": trg_con, "loc": trg_loc, "seq": trg_seq},
-            "description": desc,
-        })
+        chain.append(
+            {
+                "code": code,
+                "effect_location": {
+                    "con": info_con,
+                    "loc": info_loc,
+                    "seq": info_seq,
+                    "pos": info_pos,
+                },
+                "trigger_location": {"con": trg_con, "loc": trg_loc, "seq": trg_seq},
+                "description": desc,
+            }
+        )
     return {"duel_options": duel_options, "players": players, "chain": chain}
 
 
@@ -938,87 +1038,109 @@ _STATUS_BITS = [
 ]
 
 _TYPE_BITS = [
-    (0x1, "monster"), (0x2, "spell"), (0x4, "trap"),
-    (0x10, "normal"), (0x20, "effect"), (0x40, "fusion"),
-    (0x80, "ritual"), (0x100, "trap_monster"), (0x200, "spirit"),
-    (0x400, "union"), (0x800, "gemini"), (0x1000, "tuner"),
-    (0x2000, "synchro"), (0x4000, "token"), (0x8000, "maximum"),
-    (0x10000, "quick_play"), (0x20000, "continuous"), (0x40000, "equip"),
-    (0x80000, "field"), (0x100000, "counter"), (0x200000, "flip"),
-    (0x400000, "toon"), (0x800000, "xyz"), (0x1000000, "pendulum"),
-    (0x2000000, "spsummon"), (0x4000000, "link"),
+    (0x1, "monster"),
+    (0x2, "spell"),
+    (0x4, "trap"),
+    (0x10, "normal"),
+    (0x20, "effect"),
+    (0x40, "fusion"),
+    (0x80, "ritual"),
+    (0x100, "trap_monster"),
+    (0x200, "spirit"),
+    (0x400, "union"),
+    (0x800, "gemini"),
+    (0x1000, "tuner"),
+    (0x2000, "synchro"),
+    (0x4000, "token"),
+    (0x8000, "maximum"),
+    (0x10000, "quick_play"),
+    (0x20000, "continuous"),
+    (0x40000, "equip"),
+    (0x80000, "field"),
+    (0x100000, "counter"),
+    (0x200000, "flip"),
+    (0x400000, "toon"),
+    (0x800000, "xyz"),
+    (0x1000000, "pendulum"),
+    (0x2000000, "spsummon"),
+    (0x4000000, "link"),
 ]
 
 # ocgapi_constants.h:61-67
 _ATTRIBUTE_STRS = {
-    0x01: "EARTH",  0x02: "WATER", 0x04: "FIRE", 0x08: "WIND",
-    0x10: "LIGHT",  0x20: "DARK",  0x40: "DIVINE",
+    0x01: "EARTH",
+    0x02: "WATER",
+    0x04: "FIRE",
+    0x08: "WIND",
+    0x10: "LIGHT",
+    0x20: "DARK",
+    0x40: "DIVINE",
 }
 
 # ocgapi_constants.h:71-104 — full OCG race list incl. newer races.
 _RACE_STRS = {
-    0x1:          "WARRIOR",
-    0x2:          "SPELLCASTER",
-    0x4:          "FAIRY",
-    0x8:          "FIEND",
-    0x10:         "ZOMBIE",
-    0x20:         "MACHINE",
-    0x40:         "AQUA",
-    0x80:         "PYRO",
-    0x100:        "ROCK",
-    0x200:        "WINGED_BEAST",
-    0x400:        "PLANT",
-    0x800:        "INSECT",
-    0x1000:       "THUNDER",
-    0x2000:       "DRAGON",
-    0x4000:       "BEAST",
-    0x8000:       "BEAST_WARRIOR",
-    0x10000:      "DINOSAUR",
-    0x20000:      "FISH",
-    0x40000:      "SEA_SERPENT",
-    0x80000:      "REPTILE",
-    0x100000:     "PSYCHIC",
-    0x200000:     "DIVINE_BEAST",
-    0x400000:     "CREATOR_GOD",
-    0x800000:     "WYRM",
-    0x1000000:    "CYBERSE",
-    0x2000000:    "ILLUSION",
-    0x4000000:    "CYBORG",
-    0x8000000:    "MAGICAL_KNIGHT",
-    0x10000000:   "HIGH_DRAGON",
-    0x20000000:   "OMEGA_PSYCHIC",
-    0x40000000:   "CELESTIAL_WARRIOR",
-    0x80000000:   "GALAXY",
+    0x1: "WARRIOR",
+    0x2: "SPELLCASTER",
+    0x4: "FAIRY",
+    0x8: "FIEND",
+    0x10: "ZOMBIE",
+    0x20: "MACHINE",
+    0x40: "AQUA",
+    0x80: "PYRO",
+    0x100: "ROCK",
+    0x200: "WINGED_BEAST",
+    0x400: "PLANT",
+    0x800: "INSECT",
+    0x1000: "THUNDER",
+    0x2000: "DRAGON",
+    0x4000: "BEAST",
+    0x8000: "BEAST_WARRIOR",
+    0x10000: "DINOSAUR",
+    0x20000: "FISH",
+    0x40000: "SEA_SERPENT",
+    0x80000: "REPTILE",
+    0x100000: "PSYCHIC",
+    0x200000: "DIVINE_BEAST",
+    0x400000: "CREATOR_GOD",
+    0x800000: "WYRM",
+    0x1000000: "CYBERSE",
+    0x2000000: "ILLUSION",
+    0x4000000: "CYBORG",
+    0x8000000: "MAGICAL_KNIGHT",
+    0x10000000: "HIGH_DRAGON",
+    0x20000000: "OMEGA_PSYCHIC",
+    0x40000000: "CELESTIAL_WARRIOR",
+    0x80000000: "GALAXY",
     0x4000000000000000: "YOKAI",
 }
 
 # ocgapi_constants.h:108-133
 _REASON_BITS = [
-    (0x1,        "destroy"),
-    (0x2,        "release"),
-    (0x4,        "temporary"),
-    (0x8,        "material"),
-    (0x10,       "summon"),
-    (0x20,       "battle"),
-    (0x40,       "effect"),
-    (0x80,       "cost"),
-    (0x100,      "adjust"),
-    (0x200,      "lost_target"),
-    (0x400,      "rule"),
-    (0x800,      "spsummon"),
-    (0x1000,     "dissummon"),
-    (0x2000,     "flip"),
-    (0x4000,     "discard"),
-    (0x8000,     "reflected_damage"),
-    (0x10000,    "reflected_recover"),
-    (0x20000,    "return"),
-    (0x40000,    "fusion"),
-    (0x80000,    "synchro"),
-    (0x100000,   "ritual"),
-    (0x200000,   "xyz"),
-    (0x1000000,  "replace"),
-    (0x2000000,  "draw"),
-    (0x4000000,  "redirect"),
+    (0x1, "destroy"),
+    (0x2, "release"),
+    (0x4, "temporary"),
+    (0x8, "material"),
+    (0x10, "summon"),
+    (0x20, "battle"),
+    (0x40, "effect"),
+    (0x80, "cost"),
+    (0x100, "adjust"),
+    (0x200, "lost_target"),
+    (0x400, "rule"),
+    (0x800, "spsummon"),
+    (0x1000, "dissummon"),
+    (0x2000, "flip"),
+    (0x4000, "discard"),
+    (0x8000, "reflected_damage"),
+    (0x10000, "reflected_recover"),
+    (0x20000, "return"),
+    (0x40000, "fusion"),
+    (0x80000, "synchro"),
+    (0x100000, "ritual"),
+    (0x200000, "xyz"),
+    (0x1000000, "replace"),
+    (0x2000000, "draw"),
+    (0x4000000, "redirect"),
     (0x10000000, "link"),
 ]
 
@@ -1038,9 +1160,9 @@ _LINK_MARKER_BITS = [
 # Additional codes (3+) can be set by card effects via libduel.cpp:1123
 # (e.g. Exodia, Final Countdown) and are script-specific.
 _WIN_REASON_STRS = {
-    0: "effect_win",     # set by a card effect (code > 2 also routes here)
-    1: "lp_zero",        # a player reached 0 LP
-    2: "deck_out",       # a player tried to draw from an empty deck
+    0: "effect_win",  # set by a card effect (code > 2 also routes here)
+    1: "lp_zero",  # a player reached 0 LP
+    2: "deck_out",  # a player tried to draw from an empty deck
 }
 
 
@@ -1091,13 +1213,13 @@ def glossary() -> dict:
         ),
         "position": {f"0x{k:x}": v for k, v in _POSITION_STRS.items()},
         "location": {f"0x{k:x}": v for k, v in _LOCATION_STRS.items()},
-        "phase":    {f"0x{k:x}": v for k, v in _PHASE_STRS.items()},
+        "phase": {f"0x{k:x}": v for k, v in _PHASE_STRS.items()},
         "attribute": {f"0x{k:x}": v for k, v in _ATTRIBUTE_STRS.items()},
-        "race":      {f"0x{k:x}": v for k, v in _RACE_STRS.items()},
-        "type_flags":      [{"bit": f"0x{b:x}", "name": n} for b, n in _TYPE_BITS],
-        "status_flags":    [{"bit": f"0x{b:x}", "name": n} for b, n in _STATUS_BITS],
-        "reason_flags":    [{"bit": f"0x{b:x}", "name": n} for b, n in _REASON_BITS],
-        "link_markers":    [{"bit": f"0x{b:x}", "name": n} for b, n in _LINK_MARKER_BITS],
+        "race": {f"0x{k:x}": v for k, v in _RACE_STRS.items()},
+        "type_flags": [{"bit": f"0x{b:x}", "name": n} for b, n in _TYPE_BITS],
+        "status_flags": [{"bit": f"0x{b:x}", "name": n} for b, n in _STATUS_BITS],
+        "reason_flags": [{"bit": f"0x{b:x}", "name": n} for b, n in _REASON_BITS],
+        "link_markers": [{"bit": f"0x{b:x}", "name": n} for b, n in _LINK_MARKER_BITS],
         "win_reason": {f"0x{k:x}": v for k, v in _WIN_REASON_STRS.items()},
     }
 
@@ -1127,16 +1249,20 @@ def resolve_desc_id(strcode: int, card_db: CardDB, compat: bool = True) -> dict:
     """
     if compat:
         if strcode < 10000:
-            return {"strcode": strcode, "code": 0, "stringid": strcode,
-                    "text": None, "kind": "system"}
+            return {
+                "strcode": strcode,
+                "code": 0,
+                "stringid": strcode,
+                "text": None,
+                "kind": "system",
+            }
         code = strcode >> 4
-        stringid = strcode & 0xf
+        stringid = strcode & 0xF
     else:
         code = strcode >> 20
-        stringid = strcode & 0xfffff
+        stringid = strcode & 0xFFFFF
     if code == 0:
-        return {"strcode": strcode, "code": 0, "stringid": stringid,
-                "text": None, "kind": "system"}
+        return {"strcode": strcode, "code": 0, "stringid": stringid, "text": None, "kind": "system"}
     info = card_db.get(code) or {}
     strs = info.get("strings") or []
     text = strs[stringid] if 0 <= stringid < len(strs) and strs[stringid] else None
@@ -1161,8 +1287,7 @@ def _code_visible(raw: dict, zone: str, owner: int, perspective: int) -> bool:
         return True
     if zone in ("hand", "deck", "extra_deck"):
         return False
-    if zone in ("monster_zone", "spell_zone", "field_zone", "pendulum_zone",
-                "banished"):
+    if zone in ("monster_zone", "spell_zone", "field_zone", "pendulum_zone", "banished"):
         return _is_face_up(raw.get("position", 0))
     if zone == "graveyard":
         return True
@@ -1192,8 +1317,17 @@ def render_card(
                 out["name"] = f"Card#{code}"
             if info.get("desc"):
                 out["desc"] = info["desc"]
-        for k in ("attack", "defense", "base_attack", "base_defense",
-                  "level", "rank", "lscale", "rscale", "link"):
+        for k in (
+            "attack",
+            "defense",
+            "base_attack",
+            "base_defense",
+            "level",
+            "rank",
+            "lscale",
+            "rscale",
+            "link",
+        ):
             if k in raw:
                 out[k] = raw[k]
         if "attribute" in raw:
@@ -1263,10 +1397,12 @@ def build_observation(
             if card is None:
                 mzone.append({"zone_index": i, "empty": True})
             else:
-                mzone.append({
-                    "zone_index": i,
-                    **render_card(card, "monster_zone", owner, perspective, card_db),
-                })
+                mzone.append(
+                    {
+                        "zone_index": i,
+                        **render_card(card, "monster_zone", owner, perspective, card_db),
+                    }
+                )
         side["monster_zone"] = mzone
 
         szone_raw = p.get("szone", [])
@@ -1276,15 +1412,18 @@ def build_observation(
             if card is None:
                 st_zone.append({"zone_index": i, "empty": True})
             else:
-                st_zone.append({
-                    "zone_index": i,
-                    **render_card(card, "spell_zone", owner, perspective, card_db),
-                })
+                st_zone.append(
+                    {
+                        "zone_index": i,
+                        **render_card(card, "spell_zone", owner, perspective, card_db),
+                    }
+                )
         side["spell_trap_zone"] = st_zone
 
         field_raw = szone_raw[5] if len(szone_raw) > 5 else None
         side["field_zone"] = (
-            None if field_raw is None
+            None
+            if field_raw is None
             else render_card(field_raw, "field_zone", owner, perspective, card_db)
         )
 
@@ -1292,27 +1431,26 @@ def build_observation(
         for i in (6, 7):
             card = szone_raw[i] if i < len(szone_raw) else None
             pend.append(
-                {"zone_index": i, "empty": True} if card is None
-                else {"zone_index": i,
-                      **render_card(card, "pendulum_zone", owner, perspective, card_db)}
+                {"zone_index": i, "empty": True}
+                if card is None
+                else {
+                    "zone_index": i,
+                    **render_card(card, "pendulum_zone", owner, perspective, card_db),
+                }
             )
         side["pendulum_zone"] = pend
 
         side["hand"] = [
-            render_card(c, "hand", owner, perspective, card_db)
-            for c in p.get("hand", [])
+            render_card(c, "hand", owner, perspective, card_db) for c in p.get("hand", [])
         ]
         side["graveyard"] = [
-            render_card(c, "graveyard", owner, perspective, card_db)
-            for c in p.get("grave", [])
+            render_card(c, "graveyard", owner, perspective, card_db) for c in p.get("grave", [])
         ]
         side["banished"] = [
-            render_card(c, "banished", owner, perspective, card_db)
-            for c in p.get("removed", [])
+            render_card(c, "banished", owner, perspective, card_db) for c in p.get("removed", [])
         ]
         side["extra_deck"] = [
-            render_card(c, "extra_deck", owner, perspective, card_db)
-            for c in p.get("extra", [])
+            render_card(c, "extra_deck", owner, perspective, card_db) for c in p.get("extra", [])
         ]
         return side
 
@@ -1399,7 +1537,7 @@ class MessageReader:
         return val
 
     def read_bytes(self, n: int) -> bytes:
-        val = self.data[self.pos:self.pos + n]
+        val = self.data[self.pos : self.pos + n]
         self.pos += n
         return val
 
@@ -1421,8 +1559,12 @@ class IdleCmdOption:
     desc: int = 0
 
     CATEGORY_NAMES = {
-        0: "summon", 1: "sp_summon", 2: "repos", 3: "set_monster",
-        4: "set_spell", 5: "activate"
+        0: "summon",
+        1: "sp_summon",
+        2: "repos",
+        3: "set_monster",
+        4: "set_spell",
+        5: "activate",
     }
 
 
@@ -1577,8 +1719,14 @@ class AnnounceNumber:
 class OCGEngine:
     """Wraps libocgcore for headless duel simulation."""
 
-    def __init__(self, dylib_path: Path, card_db: CardDB, script_dir: Path,
-                 card_script_dir: Path, verbose: bool = False):
+    def __init__(
+        self,
+        dylib_path: Path,
+        card_db: CardDB,
+        script_dir: Path,
+        card_script_dir: Path,
+        verbose: bool = False,
+    ):
         self.lib = ctypes.CDLL(str(dylib_path))
         self.card_db = card_db
         self.script_dir = script_dir
@@ -1601,7 +1749,10 @@ class OCGEngine:
         lib.OCG_GetVersion.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
         lib.OCG_GetVersion.restype = None
 
-        lib.OCG_CreateDuel.argtypes = [ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(OCG_DuelOptions)]
+        lib.OCG_CreateDuel.argtypes = [
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.POINTER(OCG_DuelOptions),
+        ]
         lib.OCG_CreateDuel.restype = ctypes.c_int
 
         lib.OCG_DestroyDuel.argtypes = [ctypes.c_void_p]
@@ -1622,16 +1773,29 @@ class OCGEngine:
         lib.OCG_DuelSetResponse.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32]
         lib.OCG_DuelSetResponse.restype = None
 
-        lib.OCG_LoadScript.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_uint32, ctypes.c_char_p]
+        lib.OCG_LoadScript.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_uint32,
+            ctypes.c_char_p,
+        ]
         lib.OCG_LoadScript.restype = ctypes.c_int
 
         lib.OCG_DuelQueryCount.argtypes = [ctypes.c_void_p, ctypes.c_uint8, ctypes.c_uint32]
         lib.OCG_DuelQueryCount.restype = ctypes.c_uint32
 
-        lib.OCG_DuelQuery.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(OCG_QueryInfo)]
+        lib.OCG_DuelQuery.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_uint32),
+            ctypes.POINTER(OCG_QueryInfo),
+        ]
         lib.OCG_DuelQuery.restype = ctypes.c_void_p
 
-        lib.OCG_DuelQueryLocation.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(OCG_QueryInfo)]
+        lib.OCG_DuelQueryLocation.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_uint32),
+            ctypes.POINTER(OCG_QueryInfo),
+        ]
         lib.OCG_DuelQueryLocation.restype = ctypes.c_void_p
 
         lib.OCG_DuelQueryField.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32)]
@@ -1686,6 +1850,7 @@ class OCGEngine:
         @OCG_DataReaderDone
         def card_reader_done(payload, data_ptr):
             pass
+
         self._card_reader_done_cb = card_reader_done
         return card_reader_done
 
@@ -1822,8 +1987,9 @@ class OCGEngine:
     def query_count(self, team: int, loc: int) -> int:
         return int(self.lib.OCG_DuelQueryCount(self.duel, team, loc))
 
-    def query_card_raw(self, con: int, loc: int, seq: int, flags: int,
-                       overlay_seq: int = 0) -> bytes:
+    def query_card_raw(
+        self, con: int, loc: int, seq: int, flags: int, overlay_seq: int = 0
+    ) -> bytes:
         info = OCG_QueryInfo(flags=flags, con=con, loc=loc, seq=seq, overlay_seq=overlay_seq)
         length = ctypes.c_uint32(0)
         ptr = self.lib.OCG_DuelQuery(self.duel, ctypes.byref(length), ctypes.byref(info))
@@ -1831,8 +1997,9 @@ class OCGEngine:
             return b""
         return ctypes.string_at(ptr, length.value)
 
-    def query_card(self, con: int, loc: int, seq: int, flags: int = QUERY_FULL_CARD,
-                   overlay_seq: int = 0) -> dict | None:
+    def query_card(
+        self, con: int, loc: int, seq: int, flags: int = QUERY_FULL_CARD, overlay_seq: int = 0
+    ) -> dict | None:
         raw = self.query_card_raw(con, loc, seq, flags, overlay_seq)
         if not raw:
             return None
@@ -1975,19 +2142,20 @@ class OCGEngine:
             pos = r.read_u32()
             htype = r.read_u8()
             value = r.read_u64()
-            return {"con": con, "loc": loc, "seq": seq, "pos": pos,
-                    "type": htype, "value": value}
+            return {"con": con, "loc": loc, "seq": seq, "pos": pos, "type": htype, "value": value}
         elif msg_type in (MSG_CONFIRM_CARDS, MSG_CONFIRM_DECKTOP, MSG_CONFIRM_EXTRATOP):
             player = r.read_u8()
             count = r.read_u32()
             cards = []
             for _ in range(count):
-                cards.append({
-                    "code": r.read_u32(),
-                    "con": r.read_u8(),
-                    "loc": r.read_u8(),
-                    "seq": r.read_u32(),
-                })
+                cards.append(
+                    {
+                        "code": r.read_u32(),
+                        "con": r.read_u8(),
+                        "loc": r.read_u8(),
+                        "seq": r.read_u32(),
+                    }
+                )
             return {"player": player, "cards": cards}
         elif msg_type == MSG_SHUFFLE_DECK:
             return {"player": r.read_u8()}
@@ -2021,8 +2189,14 @@ class OCGEngine:
             seq = r.read_u8()
             prev_pos = r.read_u8()
             cur_pos = r.read_u8()
-            return {"code": code, "con": con, "loc": loc, "seq": seq,
-                    "prev_pos": prev_pos, "cur_pos": cur_pos}
+            return {
+                "code": code,
+                "con": con,
+                "loc": loc,
+                "seq": seq,
+                "prev_pos": prev_pos,
+                "cur_pos": cur_pos,
+            }
         elif msg_type == MSG_SET:
             code = r.read_u32()
             info = self._read_loc_info(r)
@@ -2049,11 +2223,22 @@ class OCGEngine:
             tseq = r.read_u32()
             desc = r.read_u64()
             chain_count = r.read_u32()
-            return {"code": code, **info, "triggering_con": tcon,
-                    "triggering_loc": tloc, "triggering_seq": tseq,
-                    "desc": desc, "chain_count": chain_count}
-        elif msg_type in (MSG_CHAINED, MSG_CHAIN_SOLVING, MSG_CHAIN_SOLVED,
-                          MSG_CHAIN_NEGATED, MSG_CHAIN_DISABLED):
+            return {
+                "code": code,
+                **info,
+                "triggering_con": tcon,
+                "triggering_loc": tloc,
+                "triggering_seq": tseq,
+                "desc": desc,
+                "chain_count": chain_count,
+            }
+        elif msg_type in (
+            MSG_CHAINED,
+            MSG_CHAIN_SOLVING,
+            MSG_CHAIN_SOLVED,
+            MSG_CHAIN_NEGATED,
+            MSG_CHAIN_DISABLED,
+        ):
             return {"chain_count": r.read_u8()}
         elif msg_type == MSG_CHAIN_END:
             return {}
@@ -2098,10 +2283,16 @@ class OCGEngine:
             da = r.read_u32()
             dd = r.read_u32()
             d_destroyed = r.read_u8()
-            return {"attacker": attacker, "attacker_attack": aa,
-                    "attacker_defense": ad, "attacker_destroyed": bool(a_destroyed),
-                    "target": target, "target_attack": da,
-                    "target_defense": dd, "target_destroyed": bool(d_destroyed)}
+            return {
+                "attacker": attacker,
+                "attacker_attack": aa,
+                "attacker_defense": ad,
+                "attacker_destroyed": bool(a_destroyed),
+                "target": target,
+                "target_attack": da,
+                "target_defense": dd,
+                "target_destroyed": bool(d_destroyed),
+            }
         elif msg_type == MSG_ATTACK_DISABLED:
             return {}
         elif msg_type in (MSG_DAMAGE_STEP_START, MSG_DAMAGE_STEP_END):
@@ -2116,12 +2307,11 @@ class OCGEngine:
             loc = r.read_u8()
             seq = r.read_u8()
             count = r.read_u16()
-            return {"counter_type": ctype, "con": con, "loc": loc,
-                    "seq": seq, "count": count}
+            return {"counter_type": ctype, "con": con, "loc": loc, "seq": seq, "count": count}
         else:
             return {"raw": r.read_bytes(r.remaining())}
 
-    def _read_loc_info(self, r: "MessageReader") -> dict:
+    def _read_loc_info(self, r: MessageReader) -> dict:
         """Decode a C loc_info struct: u8 controler, u8 location, u32 sequence, u32 position."""
         return {
             "con": r.read_u8(),
@@ -2144,9 +2334,9 @@ class OCGEngine:
                     seq = r.read_u8()
                 else:
                     seq = r.read_u32()
-                options.append(IdleCmdOption(
-                    category=cat, index=i, code=code, con=con, loc=loc, seq=seq
-                ))
+                options.append(
+                    IdleCmdOption(category=cat, index=i, code=code, con=con, loc=loc, seq=seq)
+                )
 
         count = r.read_u32()
         for i in range(count):
@@ -2156,16 +2346,21 @@ class OCGEngine:
             seq = r.read_u32()
             desc = r.read_u64()
             r.read_u8()  # operation type
-            options.append(IdleCmdOption(
-                category=5, index=i, code=code, con=con, loc=loc, seq=seq, desc=desc
-            ))
+            options.append(
+                IdleCmdOption(category=5, index=i, code=code, con=con, loc=loc, seq=seq, desc=desc)
+            )
 
         can_bp = r.read_u8() != 0
         can_ep = r.read_u8() != 0
         can_shuffle = r.read_u8() != 0
 
-        return IdleCmd(player=player, options=options,
-                       can_battle_phase=can_bp, can_end_phase=can_ep, can_shuffle=can_shuffle)
+        return IdleCmd(
+            player=player,
+            options=options,
+            can_battle_phase=can_bp,
+            can_end_phase=can_ep,
+            can_shuffle=can_shuffle,
+        )
 
     def _parse_battle_cmd(self, r: MessageReader) -> BattleCmd:
         player = r.read_u8()
@@ -2179,9 +2374,11 @@ class OCGEngine:
             seq = r.read_u32()
             desc = r.read_u64()
             r.read_u8()  # operation type
-            options.append(BattleCmdOption(
-                category=0, index=i, code=code, con=con, loc=loc, seq=seq, desc=desc
-            ))
+            options.append(
+                BattleCmdOption(
+                    category=0, index=i, code=code, con=con, loc=loc, seq=seq, desc=desc
+                )
+            )
 
         count = r.read_u32()
         for i in range(count):
@@ -2190,16 +2387,22 @@ class OCGEngine:
             loc = r.read_u8()
             seq = r.read_u8()
             diratt = r.read_u8()
-            options.append(BattleCmdOption(
-                category=1, index=i, code=code, con=con, loc=loc, seq=seq,
-                direct_attackable=diratt
-            ))
+            options.append(
+                BattleCmdOption(
+                    category=1,
+                    index=i,
+                    code=code,
+                    con=con,
+                    loc=loc,
+                    seq=seq,
+                    direct_attackable=diratt,
+                )
+            )
 
         can_m2 = r.read_u8() != 0
         can_ep = r.read_u8() != 0
 
-        return BattleCmd(player=player, options=options,
-                         can_main2=can_m2, can_end_phase=can_ep)
+        return BattleCmd(player=player, options=options, can_main2=can_m2, can_end_phase=can_ep)
 
     def _parse_select_card(self, r: MessageReader, is_tribute: bool) -> SelectCard:
         player = r.read_u8()
@@ -2222,8 +2425,14 @@ class OCGEngine:
                 r.read_u8()  # tribute-release-param
                 pos = 0
             cards.append({"code": code, "con": con, "loc": loc, "seq": seq, "pos": pos, "index": i})
-        return SelectCard(player=player, cancelable=cancelable, min_=min_, max_=max_,
-                          cards=cards, is_tribute=is_tribute)
+        return SelectCard(
+            player=player,
+            cancelable=cancelable,
+            min_=min_,
+            max_=max_,
+            cards=cards,
+            is_tribute=is_tribute,
+        )
 
     def _parse_select_chain(self, r: MessageReader) -> SelectChain:
         player = r.read_u8()
@@ -2241,8 +2450,17 @@ class OCGEngine:
             pos = r.read_u32()
             desc = r.read_u64()
             r.read_u8()  # operation type
-            cards.append({"code": code, "con": con, "loc": loc, "seq": seq, "pos": pos,
-                          "desc": desc, "index": i})
+            cards.append(
+                {
+                    "code": code,
+                    "con": con,
+                    "loc": loc,
+                    "seq": seq,
+                    "pos": pos,
+                    "desc": desc,
+                    "index": i,
+                }
+            )
         return SelectChain(player=player, forced=forced, cards=cards)
 
     def _parse_select_effect_yn(self, r: MessageReader) -> SelectEffectYn:
@@ -2253,7 +2471,9 @@ class OCGEngine:
         seq = r.read_u32()
         pos = r.read_u32()
         desc = r.read_u64()
-        return SelectEffectYn(player=player, code=code, con=con, loc=loc, seq=seq, pos=pos, desc=desc)
+        return SelectEffectYn(
+            player=player, code=code, con=con, loc=loc, seq=seq, pos=pos, desc=desc
+        )
 
     def _parse_select_yesno(self, r: MessageReader) -> SelectYesNo:
         player = r.read_u8()
@@ -2298,14 +2518,28 @@ class OCGEngine:
                 seq = r.read_u32()
                 pos = r.read_u32()
                 op_param = r.read_u32()
-                card = {"code": code, "con": con, "loc": loc, "seq": seq, "pos": pos,
-                        "op_param": op_param, "index": i}
+                card = {
+                    "code": code,
+                    "con": con,
+                    "loc": loc,
+                    "seq": seq,
+                    "pos": pos,
+                    "op_param": op_param,
+                    "index": i,
+                }
                 if j == 0:
                     mandatory_cards.append(card)
                 else:
                     optional_cards.append(card)
-        return SelectSum(player=player, mode=mode, sumval=sumval, min_=min_, max_=max_,
-                         mandatory_cards=mandatory_cards, optional_cards=optional_cards)
+        return SelectSum(
+            player=player,
+            mode=mode,
+            sumval=sumval,
+            min_=min_,
+            max_=max_,
+            mandatory_cards=mandatory_cards,
+            optional_cards=optional_cards,
+        )
 
     def _parse_select_unselect_card(self, r: MessageReader) -> SelectUnselectCard:
         player = r.read_u8()
@@ -2322,7 +2556,9 @@ class OCGEngine:
             loc = r.read_u8()
             seq = r.read_u32()
             pos = r.read_u32()
-            selectable_cards.append({"code": code, "con": con, "loc": loc, "seq": seq, "pos": pos, "index": i})
+            selectable_cards.append(
+                {"code": code, "con": con, "loc": loc, "seq": seq, "pos": pos, "index": i}
+            )
 
         selected_cards = []
         count = r.read_u32()
@@ -2332,11 +2568,19 @@ class OCGEngine:
             loc = r.read_u8()
             seq = r.read_u32()
             pos = r.read_u32()
-            selected_cards.append({"code": code, "con": con, "loc": loc, "seq": seq, "pos": pos, "index": i})
+            selected_cards.append(
+                {"code": code, "con": con, "loc": loc, "seq": seq, "pos": pos, "index": i}
+            )
 
-        return SelectUnselectCard(player=player, finishable=finishable, cancelable=cancelable,
-                                  min_=min_, max_=max_,
-                                  selectable_cards=selectable_cards, selected_cards=selected_cards)
+        return SelectUnselectCard(
+            player=player,
+            finishable=finishable,
+            cancelable=cancelable,
+            min_=min_,
+            max_=max_,
+            selectable_cards=selectable_cards,
+            selected_cards=selected_cards,
+        )
 
     def _parse_select_counter(self, r: MessageReader) -> SelectCounter:
         player = r.read_u8()
@@ -2350,7 +2594,9 @@ class OCGEngine:
             loc = r.read_u8()
             seq = r.read_u8()
             counter = r.read_u16()
-            cards.append({"code": code, "con": con, "loc": loc, "seq": seq, "counter": counter, "index": i})
+            cards.append(
+                {"code": code, "con": con, "loc": loc, "seq": seq, "counter": counter, "index": i}
+            )
         return SelectCounter(player=player, counter_type=counter_type, count=count, cards=cards)
 
     def _parse_sort_card(self, r: MessageReader) -> SortCard:
@@ -2397,7 +2643,7 @@ class OCGEngine:
 def extract_lp_from_lua(lua_text: str) -> tuple[int, int]:
     """Extract starting LP from Debug.SetPlayerInfo calls in a puzzle Lua."""
     lp0, lp1 = 8000, 8000
-    for m in re.finditer(r'Debug\.SetPlayerInfo\s*\(\s*(\d+)\s*,\s*(\d+)', lua_text):
+    for m in re.finditer(r"Debug\.SetPlayerInfo\s*\(\s*(\d+)\s*,\s*(\d+)", lua_text):
         player = int(m.group(1))
         lp = int(m.group(2))
         if player == 0:
